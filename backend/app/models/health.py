@@ -35,8 +35,12 @@ class CheckResult(Base):
     __tablename__ = "check_result"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    health_check_id: Mapped[int] = mapped_column(ForeignKey("health_check.id", ondelete="CASCADE"), index=True)
-    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    health_check_id: Mapped[int] = mapped_column(
+        ForeignKey("health_check.id", ondelete="CASCADE"), index=True
+    )
+    checked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
     status: Mapped[CheckStatus] = mapped_column(Enum(CheckStatus, name="check_status"))
     latency_ms: Mapped[int | None]
     message: Mapped[str | None] = mapped_column(Text)

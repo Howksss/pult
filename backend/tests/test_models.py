@@ -35,10 +35,12 @@ def test_block_graph(session):
 
 def test_block_name_unique_in_project(session):
     project = make_project(session)
-    session.add_all([
-        Block(project=project, kind=BlockKind.bot, name="Бот"),
-        Block(project=project, kind=BlockKind.bot, name="Бот"),
-    ])
+    session.add_all(
+        [
+            Block(project=project, kind=BlockKind.bot, name="Бот"),
+            Block(project=project, kind=BlockKind.bot, name="Бот"),
+        ]
+    )
     with pytest.raises(IntegrityError):
         session.flush()
 
