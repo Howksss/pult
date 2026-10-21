@@ -1,6 +1,6 @@
 # Модель данных
 
-Схема: [er_diagram.puml](er_diagram.puml), изображение: [er_diagram.png](er_diagram.png). Физическая схема создаётся миграциями Alembic (`backend/migrations`). Представление статуса, тестовые данные и анализ запросов описаны в [queries.md](queries.md).
+Схема: [er_diagram.puml](er_diagram.puml), изображение: [er_diagram.png](er_diagram.png). Физическая схема создаётся миграциями Alembic (`backend/migrations`). Представление статуса, тестовые данные и анализ запросов описаны в [queries.md](queries.md), резервное копирование — в [backup.md](backup.md).
 
 | Сущность | Назначение |
 |---|---|
