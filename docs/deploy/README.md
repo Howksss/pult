@@ -69,8 +69,7 @@ docker compose -f deploy/docker-compose.yml pull
 docker compose -f deploy/docker-compose.yml up -d --no-build
 WEB_URL=http://127.0.0.1:$WEB_PORT API_URL=http://127.0.0.1:$API_PORT deploy/smoke.sh
 
-printf 'owner:%s
-' "$(openssl passwd -6)" > /etc/nginx/pult.htpasswd
+printf 'owner:%s\n' "$(openssl passwd -6)" > /etc/nginx/pult.htpasswd
 sed "s/pult.example.com/<домен>/g; s/127.0.0.1:8080/127.0.0.1:$WEB_PORT/" deploy/proxy/nginx-site.conf > /etc/nginx/sites-available/pult
 ```
 
