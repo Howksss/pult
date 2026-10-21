@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 compose_file="${COMPOSE_FILE:-$(dirname "$0")/../docker-compose.yml}"
 backup_dir="${BACKUP_DIR:-/var/backups/pult}"
