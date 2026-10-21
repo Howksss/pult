@@ -23,4 +23,7 @@ files = ["app"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-q"
+addopts = "-q --cov=app --cov-report=term-missing --cov-fail-under=90"
+
+[tool.coverage.run]
+branch = true
