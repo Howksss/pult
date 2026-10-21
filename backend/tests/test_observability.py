@@ -15,9 +15,12 @@ __all__ = ["pilot"]
 def test_metrics_count_requests_by_route_template(client, pilot):
     client.get(f"/api/v1/projects/{pilot['project']}/graph")
     client.get("/api/v1/projects/999/graph")
+    client.get("/no-such-page")
     body = client.get("/metrics").text
     assert 'route="/api/v1/projects/{project_id}/graph",status="200"' in body
     assert 'route="/api/v1/projects/{project_id}/graph",status="404"' in body
+    assert 'route="unmatched",status="404"' in body
+    assert "/api/v1/projects/999/graph" not in body
     assert "pult_http_request_duration_seconds_bucket" in body
     assert 'route="/metrics"' not in body
 

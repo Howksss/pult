@@ -8,7 +8,6 @@ from typing import Any
 
 from fastapi import FastAPI, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
-from starlette.routing import Match
 
 REQUESTS = Counter("pult_http_requests_total", "HTTP requests", ["method", "route", "status"])
 DURATION = Histogram(
@@ -46,17 +45,12 @@ def configure_logging() -> None:
 
 
 def route_template(request: Request) -> str:
-    for route in request.app.router.routes:
-        match, _ = route.matches(request.scope)
-        if match is Match.FULL:
-            return str(getattr(route, "path", request.url.path))
-    return "unmatched"
+    return str(getattr(request.scope.get("route"), "path", "unmatched"))
 
 
 async def observe(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     incoming = request.headers.get("x-request-id", "")
     request_id = incoming if REQUEST_ID.fullmatch(incoming) else uuid.uuid4().hex
-    route = route_template(request)
     started = time.perf_counter()
     status = 500
     try:
@@ -66,6 +60,7 @@ async def observe(request: Request, call_next: Callable[[Request], Awaitable[Res
         return response
     finally:
         elapsed = time.perf_counter() - started
+        route = route_template(request)
         if route != "/metrics":
             REQUESTS.labels(request.method, route, str(status)).inc()
             DURATION.labels(request.method, route).observe(elapsed)
