@@ -15,6 +15,11 @@ class BlockKind(str, enum.Enum):
     storage = "storage"
 
 
+class ScopeAccess(str, enum.Enum):
+    read = "read"
+    write = "write"
+
+
 class Project(CreatedAtMixin, Base):
     __tablename__ = "project"
 
@@ -52,3 +57,12 @@ class BlockLink(Base):
     source_block_id: Mapped[int] = mapped_column(ForeignKey("block.id", ondelete="CASCADE"))
     target_block_id: Mapped[int] = mapped_column(ForeignKey("block.id", ondelete="CASCADE"))
     label: Mapped[str | None] = mapped_column(String(100))
+
+
+class BlockScope(Base):
+    __tablename__ = "block_scope"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    block_id: Mapped[int] = mapped_column(ForeignKey("block.id", ondelete="CASCADE"), index=True)
+    path_glob: Mapped[str] = mapped_column(String(300))
+    access: Mapped[ScopeAccess] = mapped_column(Enum(ScopeAccess, name="scope_access"))
