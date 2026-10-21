@@ -39,7 +39,7 @@ services:
       migrate:
         condition: service_completed_successfully
     ports:
-      - "8000:8000"
+      - "127.0.0.1:${API_PORT:-8000}:8000"
     restart: unless-stopped
 
   frontend:
@@ -49,7 +49,7 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      - "127.0.0.1:${WEB_PORT:-8080}:8080"
     restart: unless-stopped
 
   prometheus:
@@ -62,7 +62,7 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "9090:9090"
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
     restart: unless-stopped
 
 volumes:
