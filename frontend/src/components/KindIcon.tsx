@@ -1,21 +1,13 @@
-import {
-  Bot,
-  Clock,
-  Database,
-  Plug,
-  Server,
-  SlidersHorizontal,
-  type LucideIcon,
-} from "lucide-react";
 import type { BlockKind } from "../api";
+import { Icon, type IconName } from "./Icon";
 
-const ICONS: Record<BlockKind, LucideIcon> = {
-  server: Server,
-  scheduled_job: Clock,
-  bot: Bot,
-  integration: Plug,
-  config: SlidersHorizontal,
-  storage: Database,
+const ICONS: Record<BlockKind, IconName> = {
+  server: "server",
+  scheduled_job: "schedule",
+  bot: "bot",
+  integration: "integration",
+  config: "config",
+  storage: "storage",
 };
 
 interface KindIconProps {
@@ -24,10 +16,9 @@ interface KindIconProps {
 }
 
 export function KindIcon({ kind, size = "md" }: KindIconProps) {
-  const Icon = ICONS[kind];
   return (
     <span className={`kind-icon kind-icon--${kind} kind-icon--${size}`} aria-hidden="true">
-      <Icon size={size === "md" ? 18 : 14} strokeWidth={1.8} />
+      <Icon name={ICONS[kind]} size={size === "md" ? 20 : 15} />
     </span>
   );
 }

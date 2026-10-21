@@ -441,8 +441,21 @@ button.system-status:focus-visible {
 }
 
 .react-flow__controls-button {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--text-muted);
+}
+
+.react-flow__controls-button:hover {
+  color: var(--text);
+}
+
+.react-flow__controls-button svg {
+  max-width: none;
+  max-height: none;
+  width: auto;
+  fill: none;
 }
 
 .react-flow__minimap {

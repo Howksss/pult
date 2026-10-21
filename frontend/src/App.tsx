@@ -2,6 +2,7 @@ import {
   applyNodeChanges,
   Background,
   BackgroundVariant,
+  ControlButton,
   Controls,
   MiniMap,
   ReactFlow,
@@ -10,12 +11,12 @@ import {
   type NodeChange,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { LoaderCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
 import { fetchGraph, moveBlock, type Graph } from "./api";
 import { BlockNode } from "./components/BlockNode";
 import { FlowEdge } from "./components/FlowEdge";
+import { Icon } from "./components/Icon";
 import { Inspector } from "./components/Inspector";
 import { TopBar } from "./components/TopBar";
 import {
@@ -47,7 +48,8 @@ function Board() {
   const [notice, setNotice] = useState<string | null>(null);
   const [nodes, setNodes] = useState<BlockNodeType[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const { flowToScreenPosition, getNode, getZoom, setCenter } = useReactFlow<BlockNodeType>();
+  const { fitView, flowToScreenPosition, getNode, getZoom, setCenter, zoomIn, zoomOut } =
+    useReactFlow<BlockNodeType>();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -175,7 +177,29 @@ function Board() {
             maxZoom={1.8}
           >
             <Background variant={BackgroundVariant.Dots} gap={22} size={1.4} />
-            <Controls showInteractive={false} />
+            <Controls showZoom={false} showFitView={false} showInteractive={false}>
+              <ControlButton
+                onClick={() => zoomIn({ duration: 200 })}
+                title="Приблизить"
+                aria-label="Приблизить"
+              >
+                <Icon name="zoomIn" size={16} />
+              </ControlButton>
+              <ControlButton
+                onClick={() => zoomOut({ duration: 200 })}
+                title="Отдалить"
+                aria-label="Отдалить"
+              >
+                <Icon name="zoomOut" size={16} />
+              </ControlButton>
+              <ControlButton
+                onClick={() => fitView({ padding: 0.18, duration: 300 })}
+                title="Показать всё"
+                aria-label="Показать всё"
+              >
+                <Icon name="fit" size={15} />
+              </ControlButton>
+            </Controls>
             <MiniMap
               nodeColor={minimapColor}
               nodeBorderRadius={6}
@@ -190,7 +214,7 @@ function Board() {
               "Граф недоступен"
             ) : (
               <>
-                <LoaderCircle className="spin" size={18} aria-hidden="true" />
+                <Icon name="loader" className="spin" size={18} />
                 Загружаем граф…
               </>
             )}

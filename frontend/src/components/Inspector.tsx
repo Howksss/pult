@@ -1,7 +1,7 @@
-import { ArrowLeft, ArrowRight, Lock, Send, Sparkles, X } from "lucide-react";
 import type { Block, Graph } from "../api";
 import { connections, KIND_LABELS, type Connection } from "../graph";
 import { STATUS_PRESENTATION } from "../status";
+import { Icon } from "./Icon";
 import { KindIcon } from "./KindIcon";
 import { StatusBadge, StatusDot } from "./StatusBadge";
 
@@ -13,7 +13,6 @@ interface ConnectionListProps {
 }
 
 function ConnectionList({ title, items, direction, onSelect }: ConnectionListProps) {
-  const Arrow = direction === "in" ? ArrowLeft : ArrowRight;
   return (
     <section className="inspector__section">
       <h3 className="inspector__heading">
@@ -38,7 +37,11 @@ function ConnectionList({ title, items, direction, onSelect }: ConnectionListPro
                   {link.label && <span className="connection__label">{link.label}</span>}
                 </span>
                 <StatusDot status={block.status} />
-                <Arrow className="connection__arrow" size={14} aria-hidden="true" />
+                <Icon
+                  name={direction === "in" ? "arrowLeft" : "arrowRight"}
+                  className="connection__arrow"
+                  size={14}
+                />
               </button>
             </li>
           ))}
@@ -66,7 +69,7 @@ export function Inspector({ graph, block, onSelect, onClose }: InspectorProps) {
           <span>{KIND_LABELS[block.kind]}</span>
         </div>
         <button type="button" className="icon-button" onClick={onClose} aria-label="Закрыть">
-          <X size={16} aria-hidden="true" />
+          <Icon name="close" size={18} />
         </button>
       </header>
       <section className="inspector__section">
@@ -77,7 +80,7 @@ export function Inspector({ graph, block, onSelect, onClose }: InspectorProps) {
       <ConnectionList title="Исходящие" items={outgoing} direction="out" onSelect={onSelect} />
       <section className="inspector__agent">
         <h3 className="inspector__heading">
-          <Sparkles size={14} aria-hidden="true" />
+          <Icon name="agent" size={15} />
           Задача агенту
         </h3>
         <textarea
@@ -88,11 +91,11 @@ export function Inspector({ graph, block, onSelect, onClose }: InspectorProps) {
         />
         <div className="inspector__agent-foot">
           <span className="inspector__scope">
-            <Lock size={12} aria-hidden="true" />
+            <Icon name="lock" size={13} />
             Только файлы этого блока
           </span>
           <button type="button" className="button button--primary" disabled>
-            <Send size={14} aria-hidden="true" />
+            <Icon name="send" size={15} />
             Отправить
           </button>
         </div>
