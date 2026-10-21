@@ -10,7 +10,7 @@ class AuditEvent(CreatedAtMixin, Base):
     __tablename__ = "audit_event"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int | None] = mapped_column(ForeignKey("app_user.id", ondelete="SET NULL"))
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("app_user.id", ondelete="RESTRICT"))
     block_id: Mapped[int | None] = mapped_column(ForeignKey("block.id", ondelete="SET NULL"), index=True)
     action: Mapped[str] = mapped_column(String(100))
     payload: Mapped[Any] = mapped_column(JsonDocument, nullable=True)

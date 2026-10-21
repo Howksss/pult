@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.models import (
     AgentTask,
     AppUser,
+    AuditEvent,
     Block,
     BlockKind,
     BlockLink,
@@ -101,3 +102,13 @@ def test_task_message_content_stored_as_jsonb(session):
     assert column_type.scalar_one() == "jsonb"
     stored = session.scalars(select(TaskMessage.content)).one()
     assert stored == content
+
+
+def test_user_with_audit_events_cannot_be_deleted(session):
+    user = AppUser(email="dev@example.com", full_name="Dev", password_hash="argon2-hash-placeholder")
+    session.add(user)
+    session.flush()
+    session.add(AuditEvent(user_id=user.id, action="change_request.approved", payload={"pr": 1}))
+    session.flush()
+    with pytest.raises(IntegrityError, match="audit_event"):
+        session.connection().exec_driver_sql("delete from app_user where id = %s", (user.id,))

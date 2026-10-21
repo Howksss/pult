@@ -102,7 +102,7 @@ def upgrade() -> None:
         ),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(["block_id"], ["block.id"], ondelete="SET NULL"),
-        sa.ForeignKeyConstraint(["user_id"], ["app_user.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["user_id"], ["app_user.id"], ondelete="RESTRICT"),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_audit_event_block_id"), "audit_event", ["block_id"], unique=False)
