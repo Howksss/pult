@@ -1,0 +1,26 @@
+meta {
+  name: Probe отправляет сбой
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/v1/probe/results
+  body: json
+  auth: none
+}
+
+headers {
+  X-Probe-Token: {{probeToken}}
+}
+
+body:json {
+  {"results": [{"health_check_id": {{posCheckId}}, "status": "fail", "checked_at": "{{$isoTimestamp}}"}]}
+}
+
+tests {
+  test("202, результат принят", function () {
+    expect(res.getStatus()).to.equal(202);
+    expect(res.getBody().accepted).to.equal(1);
+  });
+}

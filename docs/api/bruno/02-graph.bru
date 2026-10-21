@@ -1,0 +1,19 @@
+meta {
+  name: Граф проекта
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/projects/{{projectId}}/graph
+  body: none
+  auth: none
+}
+
+tests {
+  test("200 и блоки со статусами", function () {
+    expect(res.getStatus()).to.equal(200);
+    const statuses = ["ok", "warn", "fail", "unknown"];
+    res.getBody().blocks.forEach((block) => expect(statuses).to.include(block.status));
+  });
+}
