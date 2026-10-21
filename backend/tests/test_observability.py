@@ -25,6 +25,9 @@ def test_metrics_count_requests_by_route_template(client, pilot):
 def test_request_id_is_echoed_or_generated(client, pilot):
     assert client.get("/api/health", headers={"X-Request-ID": "abc"}).headers["X-Request-ID"] == "abc"
     assert len(client.get("/api/health").headers["X-Request-ID"]) == 32
+    forged = client.get("/api/health", headers={"X-Request-ID": "a" * 65}).headers["X-Request-ID"]
+    assert forged != "a" * 65
+    assert len(forged) == 32
 
 
 def test_access_log_is_json_with_fields(client, pilot, caplog):

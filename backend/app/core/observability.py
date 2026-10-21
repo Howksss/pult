@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import time
 import uuid
 from collections.abc import Awaitable, Callable
@@ -18,6 +19,8 @@ DURATION = Histogram(
 )
 
 access_log = logging.getLogger("pult.access")
+
+REQUEST_ID = re.compile(r"[A-Za-z0-9-]{1,64}")
 
 
 class JsonFormatter(logging.Formatter):
@@ -51,7 +54,8 @@ def route_template(request: Request) -> str:
 
 
 async def observe(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
-    request_id = request.headers.get("x-request-id") or uuid.uuid4().hex
+    incoming = request.headers.get("x-request-id", "")
+    request_id = incoming if REQUEST_ID.fullmatch(incoming) else uuid.uuid4().hex
     route = route_template(request)
     started = time.perf_counter()
     status = 500
