@@ -31,6 +31,8 @@ class CheckSnapshot:
 
 
 def check_status(snapshot: CheckSnapshot | None, now: datetime) -> BlockStatus:
+    if now.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
     if snapshot is None:
         return BlockStatus.unknown
     stale_after = timedelta(seconds=snapshot.interval_sec * STALE_AFTER_INTERVALS)

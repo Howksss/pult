@@ -28,6 +28,11 @@ def test_fresh_result_keeps_its_status(status, expected):
     assert check_status(snapshot(status, seconds_ago=10), NOW) is expected
 
 
+def test_naive_now_is_rejected():
+    with pytest.raises(ValueError, match="timezone-aware"):
+        check_status(snapshot(CheckStatus.ok, seconds_ago=10), NOW.replace(tzinfo=None))
+
+
 def test_no_result_is_unknown():
     assert check_status(None, NOW) is BlockStatus.unknown
 
