@@ -1,3 +1,7 @@
 from fastapi import FastAPI
 
-app = FastAPI(title="Pult", version="0.0.1")
+from app import __version__
+from app.api import health
+
+app = FastAPI(title="Pult", version=__version__)
+app.include_router(health.router)
