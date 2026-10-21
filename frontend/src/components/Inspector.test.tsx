@@ -51,7 +51,7 @@ describe("Inspector", () => {
     expect(within(panel).getByRole("heading", { name: "Расчёт плана" })).toBeInTheDocument();
     expect(within(panel).getByText("Задание по расписанию")).toBeInTheDocument();
     expect(within(panel).getByText("Прогон в 08:00")).toBeInTheDocument();
-    expect(within(panel).getByTitle("Работает")).toBeInTheDocument();
+    expect(within(panel).getByTitle("Все проверки блока прошли")).toHaveTextContent("Работает");
   });
 
   it("перечисляет входящие и исходящие связи с подписями", () => {

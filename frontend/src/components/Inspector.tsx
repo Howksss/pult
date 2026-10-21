@@ -3,7 +3,7 @@ import type { Block, Graph } from "../api";
 import { connections, KIND_LABELS, type Connection } from "../graph";
 import { STATUS_PRESENTATION } from "../status";
 import { KindIcon } from "./KindIcon";
-import { StatusBadge, StatusIcon } from "./StatusBadge";
+import { StatusBadge, StatusDot } from "./StatusBadge";
 
 interface ConnectionListProps {
   title: string;
@@ -37,7 +37,7 @@ function ConnectionList({ title, items, direction, onSelect }: ConnectionListPro
                   <span className="connection__name">{block.name}</span>
                   {link.label && <span className="connection__label">{link.label}</span>}
                 </span>
-                <StatusIcon status={block.status} />
+                <StatusDot status={block.status} />
                 <Arrow className="connection__arrow" size={14} aria-hidden="true" />
               </button>
             </li>

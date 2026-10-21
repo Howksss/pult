@@ -35,7 +35,7 @@ describe("BlockNode", () => {
     expect(screen.getByText("POS-система")).toBeInTheDocument();
     expect(screen.getByText("Интеграция")).toBeInTheDocument();
     expect(screen.getByText("Продажи и остатки")).toBeInTheDocument();
-    expect(screen.getByTitle("Сбой")).toBeInTheDocument();
+    expect(screen.getByTitle("Одна из проверок блока не прошла")).toHaveTextContent("Сбой");
     expect(container.querySelector(".kind-icon--integration")).not.toBeNull();
     expect(container.firstChild).toHaveClass("block-node--fail");
   });
