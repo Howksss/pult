@@ -32,6 +32,33 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Health"
+  /api/ready:
+    get:
+      tags: [service]
+      operationId: ready
+      security: []
+      summary: Готовность к работе, включая доступность БД
+      responses:
+        "200":
+          description: API и БД доступны
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, database]
+                properties:
+                  status:
+                    type: string
+                    const: ready
+                  database:
+                    type: string
+                    const: ok
+        "503":
+          description: БД недоступна
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
   /api/v1/projects/{project_id}/graph:
     get:
       tags: [graph]
