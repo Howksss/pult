@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_as_is" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Pool_1" name="Сопровождение пилотной системы (As-Is)" processRef="Process_1" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_client" name="Заказчик (управляющий сети)">
+        <bpmn:flowNodeRef>Start_noticed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_merge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_write</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_check</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_solved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_solved</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_dev" name="Разработчик">
+        <bpmn:flowNodeRef>Task_logs</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_fix</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_deploy</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_report</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_server" name="Сервер пилотной системы">
+        <bpmn:flowNodeRef>Start_timer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_run</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gw_ok</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_ok</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Start_timer" name="08:00 по cron">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="Timer_Start_timer" />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="Task_run" name="Рассчитать план и разослать в Telegram">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gw_ok" name="Прогон без ошибок?">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_ok" name="План у управляющих">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:startEvent id="Start_noticed" name="Замечена ошибка в плане">
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="Gw_merge">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+      <bpmn:incoming>Flow_14</bpmn:incoming>
+      <bpmn:outgoing>Flow_6</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_write" name="Описать проблему разработчику в мессенджере">
+      <bpmn:incoming>Flow_6</bpmn:incoming>
+      <bpmn:outgoing>Flow_7</bpmn:outgoing>
+      <bpmn:dataOutputAssociation id="DataAssoc_1"><bpmn:targetRef>Data_msg</bpmn:targetRef></bpmn:dataOutputAssociation>
+    </bpmn:userTask>
+    <bpmn:manualTask id="Task_logs" name="Уточнить детали, найти компонент по логам на сервере">
+      <bpmn:incoming>Flow_7</bpmn:incoming>
+      <bpmn:outgoing>Flow_8</bpmn:outgoing>
+      <bpmn:dataInputAssociation id="DataAssoc_2"><bpmn:sourceRef>Data_msg</bpmn:sourceRef></bpmn:dataInputAssociation>
+      <bpmn:dataInputAssociation id="DataAssoc_3"><bpmn:sourceRef>Data_logs</bpmn:sourceRef></bpmn:dataInputAssociation>
+    </bpmn:manualTask>
+    <bpmn:manualTask id="Task_fix" name="Исправить код или конфигурацию, проверить локально">
+      <bpmn:incoming>Flow_8</bpmn:incoming>
+      <bpmn:outgoing>Flow_9</bpmn:outgoing>
+    </bpmn:manualTask>
+    <bpmn:manualTask id="Task_deploy" name="Обновить код на сервере, перезапустить прогон">
+      <bpmn:incoming>Flow_9</bpmn:incoming>
+      <bpmn:outgoing>Flow_10</bpmn:outgoing>
+      <bpmn:dataOutputAssociation id="DataAssoc_4"><bpmn:targetRef>Data_code</bpmn:targetRef></bpmn:dataOutputAssociation>
+    </bpmn:manualTask>
+    <bpmn:sendTask id="Task_report" name="Сообщить заказчику об исправлении">
+      <bpmn:incoming>Flow_10</bpmn:incoming>
+      <bpmn:outgoing>Flow_11</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:userTask id="Task_check" name="Проверить новый план">
+      <bpmn:incoming>Flow_11</bpmn:incoming>
+      <bpmn:outgoing>Flow_12</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gw_solved" name="Проблема устранена?">
+      <bpmn:incoming>Flow_12</bpmn:incoming>
+      <bpmn:outgoing>Flow_13</bpmn:outgoing>
+      <bpmn:outgoing>Flow_14</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_solved" name="Сбой устранён">
+      <bpmn:incoming>Flow_13</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_timer" targetRef="Task_run" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_run" targetRef="Gw_ok" />
+    <bpmn:sequenceFlow id="Flow_3" name="да" sourceRef="Gw_ok" targetRef="End_ok" />
+    <bpmn:sequenceFlow id="Flow_4" name="нет: бот присылает ошибку" sourceRef="Gw_ok" targetRef="Gw_merge" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Start_noticed" targetRef="Gw_merge" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Gw_merge" targetRef="Task_write" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Task_write" targetRef="Task_logs" />
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Task_logs" targetRef="Task_fix" />
+    <bpmn:sequenceFlow id="Flow_9" sourceRef="Task_fix" targetRef="Task_deploy" />
+    <bpmn:sequenceFlow id="Flow_10" sourceRef="Task_deploy" targetRef="Task_report" />
+    <bpmn:sequenceFlow id="Flow_11" sourceRef="Task_report" targetRef="Task_check" />
+    <bpmn:sequenceFlow id="Flow_12" sourceRef="Task_check" targetRef="Gw_solved" />
+    <bpmn:sequenceFlow id="Flow_13" name="да" sourceRef="Gw_solved" targetRef="End_solved" />
+    <bpmn:sequenceFlow id="Flow_14" name="нет" sourceRef="Gw_solved" targetRef="Gw_merge" />
+    <bpmn:dataObjectReference id="Data_msg" name="Сообщение в мессенджере" dataObjectRef="Obj_Data_msg" />
+    <bpmn:dataObject id="Obj_Data_msg" />
+    <bpmn:dataObjectReference id="Data_logs" name="Логи прогона" dataObjectRef="Obj_Data_logs" />
+    <bpmn:dataObject id="Obj_Data_logs" />
+    <bpmn:dataObjectReference id="Data_code" name="Код и config.yaml" dataObjectRef="Obj_Data_code" />
+    <bpmn:dataObject id="Obj_Data_code" />
+    <bpmn:textAnnotation id="Note_blind"><bpmn:text>Заказчик не видит, какой компонент сломан</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Note_blind" sourceRef="Task_write" targetRef="Note_blind" />
+    <bpmn:textAnnotation id="Note_search"><bpmn:text>30–90 мин ручного поиска по логам; один исполнитель</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Note_search" sourceRef="Task_logs" targetRef="Note_search" />
+    <bpmn:textAnnotation id="Note_noreview"><bpmn:text>Правка на сервере без ревью и без быстрого отката</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Note_noreview" sourceRef="Task_deploy" targetRef="Note_noreview" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_1">
+    <bpmndi:BPMNPlane id="Plane_1" bpmnElement="Collaboration_1">
+      <bpmndi:BPMNShape id="Pool_1_di" bpmnElement="Pool_1" isHorizontal="true"><dc:Bounds x="20" y="20" width="1875" height="630" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_client_di" bpmnElement="Lane_client" isHorizontal="true"><dc:Bounds x="50" y="20" width="1845" height="210" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_dev_di" bpmnElement="Lane_dev" isHorizontal="true"><dc:Bounds x="50" y="230" width="1845" height="230" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_server_di" bpmnElement="Lane_server" isHorizontal="true"><dc:Bounds x="50" y="460" width="1845" height="190" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Start_timer_di" bpmnElement="Start_timer"><dc:Bounds x="137" y="527" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="100" y="567" width="110" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_run_di" bpmnElement="Task_run"><dc:Bounds x="215" y="499" width="150" height="92" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gw_ok_di" bpmnElement="Gw_ok" isMarkerVisible="true"><dc:Bounds x="408" y="520" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="378" y="574" width="110" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_ok_di" bpmnElement="End_ok"><dc:Bounds x="520" y="527" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="482" y="567" width="110" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Start_noticed_di" bpmnElement="Start_noticed"><dc:Bounds x="137" y="122" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="100" y="162" width="110" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gw_merge_di" bpmnElement="Gw_merge" isMarkerVisible="true"><dc:Bounds x="512" y="115" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_write_di" bpmnElement="Task_write"><dc:Bounds x="605" y="94" width="150" height="92" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_logs_di" bpmnElement="Task_logs"><dc:Bounds x="785" y="329" width="150" height="92" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_fix_di" bpmnElement="Task_fix"><dc:Bounds x="965" y="329" width="150" height="92" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_deploy_di" bpmnElement="Task_deploy"><dc:Bounds x="1145" y="329" width="150" height="92" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_report_di" bpmnElement="Task_report"><dc:Bounds x="1325" y="329" width="150" height="92" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_check_di" bpmnElement="Task_check"><dc:Bounds x="1505" y="94" width="150" height="92" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gw_solved_di" bpmnElement="Gw_solved" isMarkerVisible="true"><dc:Bounds x="1698" y="115" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1668" y="169" width="110" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_solved_di" bpmnElement="End_solved"><dc:Bounds x="1802" y="122" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1765" y="162" width="110" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Data_msg_di" bpmnElement="Data_msg"><dc:Bounds x="787" y="155" width="36" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="829" y="160" width="100" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Data_logs_di" bpmnElement="Data_logs"><dc:Bounds x="842" y="520" width="36" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="805" y="573" width="110" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Data_code_di" bpmnElement="Data_code"><dc:Bounds x="1202" y="520" width="36" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1165" y="573" width="110" height="40" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Note_blind_di" bpmnElement="Note_blind"><dc:Bounds x="598" y="42" width="165" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Note_search_di" bpmnElement="Note_search"><dc:Bounds x="890" y="247" width="190" height="40" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Note_noreview_di" bpmnElement="Note_noreview"><dc:Bounds x="1215" y="247" width="190" height="40" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1"><di:waypoint x="173" y="545" /><di:waypoint x="215" y="545" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2"><di:waypoint x="365" y="545" /><di:waypoint x="408" y="545" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_3_di" bpmnElement="Flow_3"><di:waypoint x="458" y="545" /><di:waypoint x="520" y="545" /><bpmndi:BPMNLabel><dc:Bounds x="464" y="523" width="30" height="20" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_4_di" bpmnElement="Flow_4"><di:waypoint x="432" y="520" /><di:waypoint x="432" y="195" /><di:waypoint x="538" y="195" /><di:waypoint x="538" y="165" /><bpmndi:BPMNLabel><dc:Bounds x="438" y="308" width="100" height="20" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_5_di" bpmnElement="Flow_5"><di:waypoint x="173" y="140" /><di:waypoint x="512" y="140" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_6_di" bpmnElement="Flow_6"><di:waypoint x="562" y="140" /><di:waypoint x="605" y="140" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_7_di" bpmnElement="Flow_7"><di:waypoint x="680" y="186" /><di:waypoint x="680" y="375" /><di:waypoint x="785" y="375" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_8_di" bpmnElement="Flow_8"><di:waypoint x="935" y="375" /><di:waypoint x="965" y="375" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_9_di" bpmnElement="Flow_9"><di:waypoint x="1115" y="375" /><di:waypoint x="1145" y="375" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_10_di" bpmnElement="Flow_10"><di:waypoint x="1295" y="375" /><di:waypoint x="1325" y="375" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_11_di" bpmnElement="Flow_11"><di:waypoint x="1475" y="375" /><di:waypoint x="1580" y="375" /><di:waypoint x="1580" y="186" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_12_di" bpmnElement="Flow_12"><di:waypoint x="1655" y="140" /><di:waypoint x="1698" y="140" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_13_di" bpmnElement="Flow_13"><di:waypoint x="1748" y="140" /><di:waypoint x="1802" y="140" /><bpmndi:BPMNLabel><dc:Bounds x="1754" y="118" width="30" height="20" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_14_di" bpmnElement="Flow_14"><di:waypoint x="1722" y="115" /><di:waypoint x="1722" y="34" /><di:waypoint x="538" y="34" /><di:waypoint x="538" y="115" /><bpmndi:BPMNLabel><dc:Bounds x="1728" y="66" width="30" height="20" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DataAssoc_1_di" bpmnElement="DataAssoc_1"><di:waypoint x="755" y="140" /><di:waypoint x="787" y="180" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DataAssoc_2_di" bpmnElement="DataAssoc_2"><di:waypoint x="805" y="205" /><di:waypoint x="860" y="329" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DataAssoc_3_di" bpmnElement="DataAssoc_3"><di:waypoint x="860" y="520" /><di:waypoint x="860" y="421" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="DataAssoc_4_di" bpmnElement="DataAssoc_4"><di:waypoint x="1220" y="421" /><di:waypoint x="1220" y="520" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Note_blind_di" bpmnElement="Assoc_Note_blind"><di:waypoint x="680" y="94" /><di:waypoint x="680" y="78" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Note_search_di" bpmnElement="Assoc_Note_search"><di:waypoint x="860" y="329" /><di:waypoint x="985" y="287" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Assoc_Note_noreview_di" bpmnElement="Assoc_Note_noreview"><di:waypoint x="1220" y="329" /><di:waypoint x="1310" y="287" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
