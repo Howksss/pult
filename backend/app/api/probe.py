@@ -8,13 +8,23 @@ from sqlalchemy.orm import Session
 
 from app.api.problems import ProblemError
 from app.api.schemas import ProbeAccepted, ProbeBatchIn, StatusChange
+from app.core.config import get_settings
 from app.db import get_session
+from app.integrations.telegram import TelegramNotifier, format_message, is_notable
 from app.models import Block, CheckResult, HealthCheck, Project
 from app.services.graph_status import as_utc, block_statuses
 
 router = APIRouter(prefix="/api/v1/probe", tags=["probe"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
+
+
+def get_notifier() -> TelegramNotifier:
+    settings = get_settings()
+    return TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id)
+
+
+NotifierDep = Annotated[TelegramNotifier, Depends(get_notifier)]
 
 
 def hash_token(token: str) -> str:
@@ -35,6 +45,7 @@ def authenticate(session: Session, token: str | None) -> Project:
 def submit_results(
     payload: ProbeBatchIn,
     session: SessionDep,
+    notifier: NotifierDep,
     x_probe_token: Annotated[str | None, Header()] = None,
 ) -> ProbeAccepted:
     project = authenticate(session, x_probe_token)
@@ -77,4 +88,14 @@ def submit_results(
         for block_id in block_ids
         if before[block_id] != after[block_id]
     ]
+    notable = [change for change in changes if is_notable(change.previous, change.current)]
+    if notable and notifier.enabled:
+        name_rows = session.execute(
+            select(Block.id, Block.name).where(Block.id.in_([change.block_id for change in notable]))
+        ).all()
+        names = {block_id: name for block_id, name in name_rows}
+        for change in notable:
+            notifier.send(
+                format_message(project.name, names[change.block_id], change.previous, change.current)
+            )
     return ProbeAccepted(accepted=len(payload.results), status_changes=changes)

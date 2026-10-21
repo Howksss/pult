@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     github_token: str = ""
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:8080"]
     check_interval_sec: int = 60
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
 
 
 @lru_cache
