@@ -1,0 +1,27 @@
+@startuml context_diagram
+!include <C4/C4_Context>
+LAYOUT_TOP_DOWN()
+skinparam defaultFontName "Arial"
+skinparam dpi 150
+
+title Pult — контекстная диаграмма (C4, уровень 1)
+
+Person(client, "Заказчик", "Владелец или управляющий сети. Следит за статусами, ставит задачи по блокам")
+Person(developer, "Разработчик", "Сопровождает пилотную систему, проверяет и одобряет правки агента")
+
+System(pult, "Pult", "Граф блоков системы клиента со статусами, чат с ИИ-агентом по блоку, ревью и развёртывание правок")
+
+System_Ext(pilot, "Пилотная система", "Автопланирование выпечки на VPS: задания cron, Telegram-боты, Excel-шаблоны. На сервере работает probe Pult")
+System_Ext(github, "GitHub", "Репозиторий пилотной системы, pull request, GitHub Actions")
+System_Ext(claude, "Claude API", "Языковая модель агента (Anthropic)")
+System_Ext(telegram, "Telegram Bot API", "Уведомления о сбоях и восстановлении")
+
+Rel(client, pult, "Смотрит статусы, ставит задачи", "HTTPS")
+Rel(developer, pult, "Проверяет diff, одобряет правки", "HTTPS")
+Rel(pilot, pult, "Отправляет результаты проверок (probe)", "HTTPS")
+Rel(pult, claude, "Запросы агента с инструментами", "HTTPS")
+Rel(pult, github, "Ветки, pull request, слияние", "REST API")
+Rel(github, pilot, "Развёртывает после слияния", "GitHub Actions, SSH")
+Rel(pult, telegram, "Уведомления", "HTTPS")
+Rel(telegram, client, "Сообщение со ссылкой на блок")
+@enduml

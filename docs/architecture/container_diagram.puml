@@ -1,0 +1,36 @@
+@startuml container_diagram
+!include <C4/C4_Container>
+LAYOUT_TOP_DOWN()
+skinparam defaultFontName "Arial"
+skinparam dpi 150
+
+title Pult — контейнеры (C4, уровень 2)
+
+Person(client, "Заказчик")
+Person(developer, "Разработчик")
+
+System_Boundary(pult, "Pult") {
+  Container(web, "Web UI", "React, TypeScript, React Flow", "Граф блоков, статусы, чат блока, просмотр diff")
+  Container(api, "Backend API", "Python, FastAPI", "REST и SSE: проекты, граф, статусы, задачи, ревью, аудит. Приём результатов от probe")
+  Container(worker, "Worker", "Python, anthropic SDK", "Цикл агента с инструментами в границах блока; сбор статусов по таймеру; уведомления")
+  ContainerDb(db, "База данных", "PostgreSQL 16", "Пользователи, граф, проверки, задачи, переписка, pull request, развёртывания, аудит; очередь задач")
+  Container(workspace, "Рабочие копии", "Docker volume", "Изолированные клоны клиентского репозитория для задач агента")
+}
+
+System_Ext(pilot, "Пилотная система + probe", "VPS заказчика")
+System_Ext(github, "GitHub", "Репозиторий, pull request, Actions")
+System_Ext(claude, "Claude API", "Anthropic")
+System_Ext(telegram, "Telegram Bot API")
+
+Rel(client, web, "Использует", "HTTPS")
+Rel(developer, web, "Использует", "HTTPS")
+Rel(web, api, "Запросы и поток событий", "JSON/HTTPS, SSE")
+Rel(api, db, "Читает и пишет", "SQL")
+Rel(worker, db, "Берёт задачи, пишет результаты, NOTIFY", "SQL")
+Rel(pilot, api, "Результаты проверок", "HTTPS, токен проекта")
+Rel(worker, workspace, "Читает и правит файлы блока")
+Rel(worker, claude, "Messages API с инструментами", "HTTPS")
+Rel(worker, github, "Клон, push ветки, pull request, слияние", "Git, REST API")
+Rel(worker, telegram, "Уведомления", "HTTPS")
+Rel(github, pilot, "Развёртывание после слияния", "SSH")
+@enduml

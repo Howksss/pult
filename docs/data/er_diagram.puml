@@ -1,0 +1,157 @@
+@startuml er_diagram
+hide circle
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam dpi 150
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #333333
+  HeaderBackgroundColor #E8EEF7
+}
+
+title Pult — модель данных (ER)
+
+entity app_user {
+  * id : bigint <<PK>>
+  --
+  * email : varchar(255) <<UQ>>
+  * full_name : varchar(150)
+  * password_hash : varchar(255)
+  * created_at : timestamptz
+}
+
+entity project {
+  * id : bigint <<PK>>
+  --
+  * name : varchar(150)
+  description : text
+  * repo_full_name : varchar(200)
+  * default_branch : varchar(100)
+  * created_at : timestamptz
+}
+
+entity project_member {
+  * project_id : bigint <<PK, FK>>
+  * user_id : bigint <<PK, FK>>
+  --
+  * role : member_role
+}
+
+entity block {
+  * id : bigint <<PK>>
+  --
+  * project_id : bigint <<FK>>
+  * kind : block_kind
+  * name : varchar(100)
+  description : text
+  * pos_x : real
+  * pos_y : real
+  * created_at : timestamptz
+}
+
+entity block_link {
+  * id : bigint <<PK>>
+  --
+  * source_block_id : bigint <<FK>>
+  * target_block_id : bigint <<FK>>
+  label : varchar(100)
+}
+
+entity block_scope {
+  * id : bigint <<PK>>
+  --
+  * block_id : bigint <<FK>>
+  * path_glob : varchar(300)
+  * access : scope_access
+}
+
+entity health_check {
+  * id : bigint <<PK>>
+  --
+  * block_id : bigint <<FK>>
+  * method : check_method
+  * target : varchar(500)
+  * interval_sec : int
+  * timeout_sec : int
+}
+
+entity check_result {
+  * id : bigint <<PK>>
+  --
+  * health_check_id : bigint <<FK>>
+  * checked_at : timestamptz
+  * status : check_status
+  latency_ms : int
+  message : text
+}
+
+entity agent_task {
+  * id : bigint <<PK>>
+  --
+  * block_id : bigint <<FK>>
+  * author_id : bigint <<FK>>
+  * title : varchar(200)
+  * status : task_status
+  * created_at : timestamptz
+  finished_at : timestamptz
+}
+
+entity task_message {
+  * id : bigint <<PK>>
+  --
+  * task_id : bigint <<FK>>
+  * role : message_role
+  * content : jsonb
+  input_tokens : int
+  output_tokens : int
+  * created_at : timestamptz
+}
+
+entity change_request {
+  * id : bigint <<PK>>
+  --
+  * task_id : bigint <<FK, UQ>>
+  * branch_name : varchar(200)
+  * pr_number : int
+  * status : cr_status
+  reviewer_id : bigint <<FK>>
+  reviewed_at : timestamptz
+}
+
+entity deployment {
+  * id : bigint <<PK>>
+  --
+  * change_request_id : bigint <<FK>>
+  * commit_sha : char(40)
+  * status : deploy_status
+  * started_at : timestamptz
+  finished_at : timestamptz
+}
+
+entity audit_event {
+  * id : bigint <<PK>>
+  --
+  user_id : bigint <<FK>>
+  block_id : bigint <<FK>>
+  * action : varchar(100)
+  payload : jsonb
+  * created_at : timestamptz
+}
+
+app_user ||--o{ project_member
+project ||--o{ project_member
+project ||--o{ block
+block ||--o{ block_link : "источник"
+block ||--o{ block_link : "приёмник"
+block ||--o{ block_scope
+block ||--o{ health_check
+health_check ||--o{ check_result
+block ||--o{ agent_task
+app_user ||--o{ agent_task : "автор"
+agent_task ||--o{ task_message
+agent_task ||--o| change_request
+app_user |o--o{ change_request : "ревьюер"
+change_request ||--o{ deployment
+app_user |o--o{ audit_event
+block |o--o{ audit_event
+@enduml
