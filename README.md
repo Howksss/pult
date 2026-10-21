@@ -69,6 +69,8 @@ python -m venv .venv
 .venv/Scripts/activate
 pip install -r requirements-dev.txt
 uvicorn app.main:app --reload
+# настройки читаются из .env, список переменных — в .env.example
+curl http://localhost:8000/api/health
 
 cd ../frontend
 npm install
