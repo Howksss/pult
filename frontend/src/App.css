@@ -69,6 +69,11 @@ body,
   color: #59636e;
 }
 
+.topbar__stale {
+  color: #cf222e;
+  font-weight: 600;
+}
+
 .error {
   grid-row: 2;
   grid-column: 1 / -1;

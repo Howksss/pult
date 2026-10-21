@@ -55,8 +55,9 @@ export default function App() {
           </span>
         )}
         {graph && (
-          <span className="topbar__muted">
-            обновлено {new Date(graph.generated_at).toLocaleTimeString("ru-RU")}
+          <span className={error ? "topbar__stale" : "topbar__muted"}>
+            {error ? "данные устарели, " : ""}обновлено{" "}
+            {new Date(graph.generated_at).toLocaleTimeString("ru-RU")}
           </span>
         )}
       </header>
