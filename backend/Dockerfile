@@ -4,6 +4,9 @@ COPY requirements.txt .
 RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
 
 FROM python:3.12-slim AS runtime
+LABEL org.opencontainers.image.source="https://github.com/Howksss/pult" \
+      org.opencontainers.image.description="Pult API" \
+      org.opencontainers.image.licenses="MIT"
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 RUN useradd --create-home --uid 10001 pult
