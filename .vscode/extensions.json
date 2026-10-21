@@ -1,0 +1,9 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "charliermarsh.ruff",
+    "dbaeumer.vscode-eslint",
+    "jebbs.plantuml",
+    "bpmn-io.vs-code-bpmn-io"
+  ]
+}
