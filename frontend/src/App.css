@@ -1,0 +1,35 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #1f2328;
+  background: #ffffff;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 14px;
+  border: 1px solid currentColor;
+}
+
+.status-badge__icon {
+  font-weight: 700;
+}
+
+.status-badge--ok {
+  color: #1a7f37;
+}
+
+.status-badge--warn {
+  color: #9a6700;
+}
+
+.status-badge--fail {
+  color: #cf222e;
+}
+
+.status-badge--unknown {
+  color: #59636e;
+}
