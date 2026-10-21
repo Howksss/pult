@@ -22,6 +22,7 @@ import {
   countByStatus,
   mergeNodes,
   neighbourhood,
+  summarize,
   toEdges,
   toNodes,
   type BlockNode as BlockNodeType,
@@ -138,6 +139,7 @@ function Board() {
   );
   const edges = useMemo(() => (graph ? toEdges(graph, selectedId) : []), [graph, selectedId]);
   const counts = graph ? countByStatus(graph) : null;
+  const summary = graph ? summarize(graph) : null;
   const selected = graph?.blocks.find((block) => block.id === selectedId) ?? null;
   const toast = notice ?? (error ? `Не удалось обновить граф: ${error}` : null);
 
@@ -146,10 +148,12 @@ function Board() {
       <TopBar
         projectId={PROJECT_ID}
         counts={counts}
+        summary={summary}
         updatedAt={graph?.generated_at ?? null}
         stale={error !== null}
         theme={theme}
         onToggleTheme={toggleTheme}
+        onShowBlock={(blockId) => focus(blockId, true)}
       />
       <main className={selected ? "canvas canvas--inspecting" : "canvas"}>
         {graph ? (

@@ -2,25 +2,31 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { StatusBadge, type BlockStatus } from "./StatusBadge";
 
-const cases: [BlockStatus, string, string][] = [
-  ["ok", "Работает", "✓"],
-  ["warn", "Предупреждение", "!"],
-  ["fail", "Сбой", "✕"],
-  ["unknown", "Нет данных", "?"],
+const cases: [BlockStatus, string][] = [
+  ["ok", "Работает"],
+  ["warn", "Предупреждение"],
+  ["fail", "Сбой"],
+  ["unknown", "Нет данных"],
 ];
 
 describe("StatusBadge", () => {
-  it.each(cases)("статус %s подписан текстом и иконкой", (status, label, icon) => {
+  it.each(cases)("статус %s подписан словом и цветной точкой", (status, label) => {
     const { container } = render(<StatusBadge status={status} />);
     expect(screen.getByText(label)).toBeInTheDocument();
-    expect(container.querySelector(".status-icon")).toHaveTextContent(icon);
+    expect(container.querySelector(".status-dot")).toHaveClass(`status-dot--${status}`);
+    expect(container.querySelector(".status-dot")).toBeEmptyDOMElement();
     expect(container.firstChild).toHaveClass(`status-badge--${status}`);
   });
 
-  it("иконка скрыта от экранного диктора, подпись остаётся", () => {
+  it("точка скрыта от экранного диктора, подпись остаётся", () => {
     const { container } = render(<StatusBadge status="fail" />);
-    expect(container.querySelector(".status-icon")).toHaveAttribute("aria-hidden", "true");
-    expect(screen.getByTitle("Сбой")).toBeInTheDocument();
+    expect(container.querySelector(".status-dot")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByText("Сбой")).toBeVisible();
+  });
+
+  it("подсказка объясняет, что значит «Нет данных»", () => {
+    render(<StatusBadge status="unknown" />);
+    expect(screen.getByTitle(/probe не подключён/)).toHaveTextContent("Нет данных");
   });
 
   it("показывает счётчик и приглушает нулевой", () => {

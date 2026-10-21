@@ -17,6 +17,7 @@ export default defineConfig({
         "src/components/BlockNode.tsx",
         "src/components/Inspector.tsx",
         "src/components/StatusBadge.tsx",
+        "src/components/TopBar.tsx",
         "src/graph.ts",
       ],
       thresholds: { lines: 90, branches: 90 },

@@ -155,11 +155,6 @@ textarea {
   flex-basis: 0;
 }
 
-.health__ratio {
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
 .health__chips {
   display: flex;
   gap: 6px;
@@ -247,9 +242,9 @@ textarea {
   --ink: var(--unknown-ink);
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   height: 22px;
-  padding: 0 9px 0 4px;
+  padding: 0 9px 0 8px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 550;
@@ -284,45 +279,92 @@ textarea {
   font-weight: 650;
 }
 
-.status-icon {
+.status-dot {
   --tone: var(--unknown);
   position: relative;
-  isolation: isolate;
-  display: grid;
-  place-items: center;
   flex: none;
-  width: 14px;
-  height: 14px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--tone);
-  color: #fff;
-  font-size: 9px;
-  font-weight: 800;
-  line-height: 1;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone) 24%, transparent);
 }
 
-.status-icon--ok {
+.status-dot--ok {
   --tone: var(--ok);
 }
 
-.status-icon--warn {
+.status-dot--warn {
   --tone: var(--warn);
-  color: #2a1a00;
 }
 
-.status-icon--fail {
+.status-dot--fail {
   --tone: var(--fail);
 }
 
-.status-icon--fail::after {
+.status-dot--fail::after {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: 50%;
   background: var(--tone);
-  opacity: 0.6;
-  z-index: -1;
   animation: ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.system-status {
+  --tone: var(--unknown);
+  --ink: var(--unknown-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  max-width: 340px;
+  height: 28px;
+  padding: 0 13px 0 12px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 30%, transparent);
+}
+
+.system-status--ok {
+  --tone: var(--ok);
+  --ink: var(--ok-ink);
+}
+
+.system-status--warn {
+  --tone: var(--warn);
+  --ink: var(--warn-ink);
+}
+
+.system-status--fail {
+  --tone: var(--fail);
+  --ink: var(--fail-ink);
+}
+
+button.system-status {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+button.system-status:hover {
+  background: color-mix(in srgb, var(--tone) 22%, transparent);
+}
+
+button.system-status:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.system-status__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .kind-icon {
@@ -905,6 +947,7 @@ textarea {
 
 @media (max-width: 720px) {
   .health__chips,
+  .health__bar,
   .live__time,
   .topbar__divider,
   .topbar__project {
@@ -927,7 +970,7 @@ textarea {
   }
 
   .flow-edge--broken .react-flow__edge-path,
-  .status-icon--fail::after,
+  .status-dot--fail::after,
   .live__dot::after,
   .inspector,
   .spin {

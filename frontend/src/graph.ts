@@ -105,3 +105,45 @@ export function countByStatus(graph: Graph): Record<Block["status"], number> {
   }
   return counts;
 }
+
+export type Summary = { status: Block["status"]; text: string; blockId: number | null };
+
+function describe(blocks: Block[], one: string, many: string): string {
+  if (blocks.length <= 2) {
+    return `${one}: ${blocks.map((block) => block.name).join(", ")}`;
+  }
+  const count = blocks.length;
+  const word = count % 10 === 1 && count % 100 !== 11 ? "блоке" : "блоках";
+  return `${many} в ${count} ${word}`;
+}
+
+export function summarize(graph: Graph): Summary {
+  const total = graph.blocks.length;
+  if (total === 0) {
+    return { status: "unknown", text: "Блоков нет", blockId: null };
+  }
+  const failed = graph.blocks.filter((block) => block.status === "fail");
+  if (failed.length > 0) {
+    return { status: "fail", text: describe(failed, "Сбой", "Сбой"), blockId: failed[0].id };
+  }
+  const warned = graph.blocks.filter((block) => block.status === "warn");
+  if (warned.length > 0) {
+    return {
+      status: "warn",
+      text: describe(warned, "Предупреждение", "Предупреждения"),
+      blockId: warned[0].id,
+    };
+  }
+  const silent = graph.blocks.filter((block) => block.status === "unknown");
+  if (silent.length === total) {
+    return { status: "unknown", text: "Нет данных от проверок", blockId: null };
+  }
+  if (silent.length > 0) {
+    return {
+      status: "unknown",
+      text: `Нет данных: ${silent.length} из ${total}`,
+      blockId: silent[0].id,
+    };
+  }
+  return { status: "ok", text: "Всё работает", blockId: null };
+}

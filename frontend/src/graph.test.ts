@@ -5,6 +5,7 @@ import {
   countByStatus,
   mergeNodes,
   neighbourhood,
+  summarize,
   toEdges,
   toNodes,
   type BlockNode,
@@ -165,5 +166,58 @@ describe("connections", () => {
 describe("countByStatus", () => {
   it("считает блоки по статусам", () => {
     expect(countByStatus(graph)).toEqual({ ok: 2, warn: 0, fail: 1, unknown: 1 });
+  });
+});
+
+describe("summarize", () => {
+  const withStatuses = (...statuses: Graph["blocks"][number]["status"][]): Graph => ({
+    ...graph,
+    blocks: statuses.map((status, index) => ({
+      ...graph.blocks[0],
+      id: index + 1,
+      name: `Блок ${index + 1}`,
+      status,
+    })),
+  });
+
+  it("называет упавший блок и ведёт к нему", () => {
+    expect(summarize(graph)).toEqual({ status: "fail", text: "Сбой: POS-система", blockId: 2 });
+  });
+
+  it("при многих сбоях пишет их число", () => {
+    expect(summarize(withStatuses("fail", "fail", "fail", "ok")).text).toBe("Сбой в 3 блоках");
+    const many = withStatuses(...Array.from({ length: 21 }, () => "fail" as const));
+    expect(summarize(many).text).toBe("Сбой в 21 блоке");
+  });
+
+  it("предупреждение уступает сбою, но важнее отсутствия данных", () => {
+    expect(summarize(withStatuses("ok", "warn", "unknown", "warn"))).toEqual({
+      status: "warn",
+      text: "Предупреждение: Блок 2, Блок 4",
+      blockId: 2,
+    });
+    expect(summarize(withStatuses("warn", "warn", "warn")).text).toBe("Предупреждения в 3 блоках");
+  });
+
+  it("различает частичное и полное отсутствие данных", () => {
+    expect(summarize(withStatuses("ok", "unknown"))).toEqual({
+      status: "unknown",
+      text: "Нет данных: 1 из 2",
+      blockId: 2,
+    });
+    expect(summarize(withStatuses("unknown", "unknown"))).toEqual({
+      status: "unknown",
+      text: "Нет данных от проверок",
+      blockId: null,
+    });
+  });
+
+  it("всё зелёное и пустой проект", () => {
+    expect(summarize(withStatuses("ok", "ok"))).toEqual({
+      status: "ok",
+      text: "Всё работает",
+      blockId: null,
+    });
+    expect(summarize(withStatuses()).text).toBe("Блоков нет");
   });
 });
