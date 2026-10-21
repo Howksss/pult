@@ -1,0 +1,393 @@
+openapi: 3.1.0
+info:
+  title: Pult API
+  version: 1.0.0
+  license:
+    name: MIT
+    identifier: MIT
+  description: |
+    Контракт API Pult версии 1. Источник истины для backend, frontend и probe.
+    Несовместимые изменения выпускаются как /api/v2, совместимые — как новые поля и эндпоинты в v1.
+    Ошибки возвращаются в формате application/problem+json (RFC 9457).
+servers:
+  - url: http://localhost:8000
+tags:
+  - name: graph
+    description: Граф системы клиента
+  - name: probe
+    description: Приём результатов проверок с сервера клиента
+  - name: service
+    description: Служебные эндпоинты
+paths:
+  /api/health:
+    get:
+      tags: [service]
+      operationId: health
+      security: []
+      summary: Проверка работоспособности API
+      responses:
+        "200":
+          description: API работает
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /api/v1/projects/{project_id}/graph:
+    get:
+      tags: [graph]
+      operationId: getProjectGraph
+      security: []
+      summary: Граф проекта со статусами блоков
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Блоки, связи и статусы
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Graph"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/projects/{project_id}/blocks:
+    post:
+      tags: [graph]
+      operationId: createBlock
+      security: []
+      summary: Добавить блок
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BlockCreate"
+      responses:
+        "201":
+          description: Блок создан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Block"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/blocks/{block_id}:
+    patch:
+      tags: [graph]
+      operationId: updateBlock
+      security: []
+      summary: Изменить имя, описание или положение блока
+      parameters:
+        - $ref: "#/components/parameters/BlockId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BlockUpdate"
+      responses:
+        "200":
+          description: Блок изменён
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Block"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      tags: [graph]
+      operationId: deleteBlock
+      security: []
+      summary: Удалить блок вместе со связями и проверками
+      parameters:
+        - $ref: "#/components/parameters/BlockId"
+      responses:
+        "204":
+          description: Блок удалён
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/projects/{project_id}/links:
+    post:
+      tags: [graph]
+      operationId: createLink
+      security: []
+      summary: Соединить два блока проекта
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkCreate"
+      responses:
+        "201":
+          description: Связь создана
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Link"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/probe/results:
+    post:
+      tags: [probe]
+      operationId: submitProbeResults
+      summary: Принять пачку результатов проверок от probe
+      description: |
+        Probe на сервере клиента отправляет результаты пачкой.
+        Токен проекта передаётся в заголовке X-Probe-Token и даёт право только на этот эндпоинт (NFR-S5).
+        Пачка принимается целиком или отклоняется целиком. Если в ней есть проверка чужого проекта
+        или несуществующая проверка, ответ 422 со списком таких health_check_id в errors.
+        Probe должен убрать эти записи и повторить отправку остальных, иначе данные будут потеряны.
+      security:
+        - probeToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProbeBatch"
+      responses:
+        "202":
+          description: Результаты приняты
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProbeAccepted"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+components:
+  securitySchemes:
+    probeToken:
+      type: apiKey
+      in: header
+      name: X-Probe-Token
+  parameters:
+    ProjectId:
+      name: project_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    BlockId:
+      name: block_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    NotFound:
+      description: Объект не найден
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Conflict:
+      description: Нарушена уникальность, например имя блока в проекте
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: Токен probe не передан или неверен
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    ValidationError:
+      description: Тело или параметры запроса не прошли проверку
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+  schemas:
+    Health:
+      type: object
+      required: [status, version]
+      properties:
+        status:
+          type: string
+          const: ok
+        version:
+          type: string
+    BlockKind:
+      type: string
+      enum: [server, scheduled_job, bot, integration, config, storage]
+    BlockStatus:
+      type: string
+      enum: [ok, warn, fail, unknown]
+    CheckStatus:
+      type: string
+      enum: [ok, warn, fail]
+    Block:
+      type: object
+      required: [id, kind, name, description, x, y, status]
+      properties:
+        id:
+          type: integer
+        kind:
+          $ref: "#/components/schemas/BlockKind"
+        name:
+          type: string
+        description:
+          type: [string, "null"]
+        x:
+          type: number
+        y:
+          type: number
+        status:
+          $ref: "#/components/schemas/BlockStatus"
+    BlockCreate:
+      type: object
+      required: [kind, name]
+      additionalProperties: false
+      properties:
+        kind:
+          $ref: "#/components/schemas/BlockKind"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: [string, "null"]
+        x:
+          type: number
+          default: 0
+        y:
+          type: number
+          default: 0
+    BlockUpdate:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: [string, "null"]
+        x:
+          type: number
+        y:
+          type: number
+    Link:
+      type: object
+      required: [id, source_block_id, target_block_id, label]
+      properties:
+        id:
+          type: integer
+        source_block_id:
+          type: integer
+        target_block_id:
+          type: integer
+        label:
+          type: [string, "null"]
+    LinkCreate:
+      type: object
+      required: [source_block_id, target_block_id]
+      additionalProperties: false
+      properties:
+        source_block_id:
+          type: integer
+        target_block_id:
+          type: integer
+        label:
+          type: [string, "null"]
+          maxLength: 100
+    Graph:
+      type: object
+      required: [project_id, generated_at, blocks, links]
+      properties:
+        project_id:
+          type: integer
+        generated_at:
+          type: string
+          format: date-time
+        blocks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Block"
+        links:
+          type: array
+          items:
+            $ref: "#/components/schemas/Link"
+    ProbeResult:
+      type: object
+      required: [health_check_id, status, checked_at]
+      additionalProperties: false
+      properties:
+        health_check_id:
+          type: integer
+        status:
+          $ref: "#/components/schemas/CheckStatus"
+        checked_at:
+          type: string
+          format: date-time
+        latency_ms:
+          type: [integer, "null"]
+          minimum: 0
+        message:
+          type: [string, "null"]
+          maxLength: 2000
+    ProbeBatch:
+      type: object
+      required: [results]
+      additionalProperties: false
+      properties:
+        results:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/ProbeResult"
+    ProbeAccepted:
+      type: object
+      required: [accepted, status_changes]
+      properties:
+        accepted:
+          type: integer
+        status_changes:
+          type: array
+          items:
+            type: object
+            required: [block_id, previous, current]
+            properties:
+              block_id:
+                type: integer
+              previous:
+                $ref: "#/components/schemas/BlockStatus"
+              current:
+                $ref: "#/components/schemas/BlockStatus"
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object

@@ -1,0 +1,3 @@
+docs/api/openapi.yaml:
+  operation-4xx-response:
+    - '#/paths/~1api~1health/get/responses'
