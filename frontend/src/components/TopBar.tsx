@@ -1,7 +1,7 @@
-import { Moon, Sun, Waypoints } from "lucide-react";
 import type { Summary } from "../graph";
 import { STATUS_COLORS, type BlockStatus } from "../status";
 import type { Theme } from "../theme";
+import { Icon } from "./Icon";
 import { StatusBadge, StatusDot } from "./StatusBadge";
 
 const CHIP_ORDER: BlockStatus[] = ["fail", "warn", "unknown", "ok"];
@@ -66,7 +66,7 @@ export function TopBar({
     <header className="topbar">
       <div className="brand">
         <span className="brand__mark" aria-hidden="true">
-          <Waypoints size={16} strokeWidth={2} />
+          <Icon name="brand" size={16} />
         </span>
         Pult
       </div>
@@ -110,7 +110,7 @@ export function TopBar({
         aria-label={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
         title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
       >
-        {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+        <Icon name={theme === "dark" ? "sun" : "moon"} size={17} />
       </button>
     </header>
   );
