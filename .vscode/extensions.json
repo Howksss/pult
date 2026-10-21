@@ -1,8 +1,12 @@
 {
   "recommendations": [
     "ms-python.python",
+    "ms-python.debugpy",
+    "ms-python.mypy-type-checker",
     "charliermarsh.ruff",
     "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "vitest.explorer",
     "jebbs.plantuml",
     "bpmn-io.vs-code-bpmn-io"
   ]
