@@ -1,4 +1,4 @@
-import type { BlockStatus } from "./components/StatusBadge";
+import type { BlockStatus } from "./status";
 
 export type BlockKind = "server" | "scheduled_job" | "bot" | "integration" | "config" | "storage";
 
@@ -32,4 +32,15 @@ export async function fetchGraph(projectId: number, signal?: AbortSignal): Promi
     throw new Error(`API ${response.status}`);
   }
   return (await response.json()) as Graph;
+}
+
+export async function moveBlock(blockId: number, x: number, y: number): Promise<void> {
+  const response = await fetch(`/api/v1/blocks/${blockId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ x: Math.round(x), y: Math.round(y) }),
+  });
+  if (!response.ok) {
+    throw new Error(`API ${response.status}`);
+  }
 }
