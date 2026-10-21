@@ -1,0 +1,39 @@
+groups:
+  - name: pult
+    rules:
+      - alert: PultApiDown
+        expr: up{job="pult-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: API Pult недоступен 2 минуты (NFR-A1)
+
+      - alert: PultHighErrorRate
+        expr: |
+          sum(rate(pult_http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(pult_http_requests_total[5m])), 1e-9) > 0.02
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Больше 2 % ответов API — ошибки 5xx
+
+      - alert: PultSlowGraph
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(pult_http_request_duration_seconds_bucket{route="/api/v1/projects/{project_id}/graph"}[5m]))
+          ) > 0.3
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: p95 чтения графа выше 300 мс (NFR-P4)
+
+      - alert: PultNoProbeData
+        expr: sum(increase(pult_http_requests_total{route="/api/v1/probe/results", status="202"}[10m])) == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 10 минут нет данных от probe — сервер клиента или сеть недоступны
