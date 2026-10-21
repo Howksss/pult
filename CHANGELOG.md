@@ -1,0 +1,26 @@
+# Журнал изменений
+
+Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии — [семантическое версионирование](https://semver.org/lang/ru/).
+
+## [Unreleased]
+
+## [0.1.0] - 2026-10-21
+
+Первый учебный релиз: каркас backend и frontend, проектная документация, процесс командной работы.
+
+### Added
+
+- Репозиторий, README с назначением системы, ролями и стеком, каркас backend на FastAPI и frontend на React + Vite, docker-compose (#1).
+- Проектная документация: BPMN As-Is и To-Be, функциональные и нефункциональные требования, контекстная диаграмма и контейнеры C4, ER-модель в 3НФ, ADR 001–003 (#2).
+- Эндпоинт `GET /api/health` со статусом и версией приложения, ответ описан моделью `HealthResponse` в OpenAPI (#3, PR #10).
+- Конфигурация через pydantic-settings: БД, Claude API, GitHub, CORS, интервал проверок, а также `.env.example` (#4, PR #11).
+- SQLAlchemy-модели `project`, `block`, `block_link`, `health_check`, `check_result` с ограничениями целостности и индексом по `block.project_id` (#5, PR #12).
+- CI в GitHub Actions: ruff и pytest для backend, сборка frontend; устаревшие прогоны отменяются (#6, PR #9).
+- Модель ветвления, правила ревью и релизов, шаблон pull request (#7, PR #13).
+
+### Fixed
+
+- CORS по умолчанию разрешает и фронтенд из docker-compose на порту 8080 (#4, PR #11).
+
+[Unreleased]: https://github.com/Howksss/pult/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Howksss/pult/releases/tag/v0.1.0
