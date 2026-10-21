@@ -30,6 +30,26 @@ GitHub Issues: https://github.com/Howksss/pult/issues
 | Моделирование | PlantUML (C4, ER), BPMN 2.0 (bpmn.io) |
 | Тестирование API | Bruno |
 
+## Архитектура
+
+Модульный монолит: одна кодовая база на FastAPI запускается в двух ролях. Процесс `api` обслуживает Web UI и принимает статусы от probe. Процесс `worker` выполняет задачи агента и собирает статусы. Очередь задач и все данные хранятся в PostgreSQL. Агент правит код клиента только в отдельной ветке и открывает pull request, а на сервер правка попадает через CI/CD после одобрения человеком.
+
+![Контейнеры](docs/architecture/container_diagram.png)
+
+## Документация
+
+| Артефакт | Файл |
+|---|---|
+| Процессы As-Is и To-Be, узкие места, точки автоматизации | [docs/bpmn/README.md](docs/bpmn/README.md) |
+| Схема текущего процесса (BPMN) | [docs/bpmn/as_is.bpmn](docs/bpmn/as_is.bpmn), [png](docs/bpmn/as_is.png) |
+| Схема целевого процесса (BPMN) | [docs/bpmn/to_be.bpmn](docs/bpmn/to_be.bpmn), [png](docs/bpmn/to_be.png) |
+| Функциональные требования | [docs/requirements/functional.md](docs/requirements/functional.md) |
+| Нефункциональные требования | [docs/requirements/non_functional.md](docs/requirements/non_functional.md) |
+| Контекстная диаграмма (C4, уровень 1) | [docs/architecture/context_diagram.puml](docs/architecture/context_diagram.puml), [png](docs/architecture/context_diagram.png) |
+| Контейнеры (C4, уровень 2) | [docs/architecture/container_diagram.puml](docs/architecture/container_diagram.puml), [png](docs/architecture/container_diagram.png) |
+| ER-диаграмма и нормализация | [docs/data/README.md](docs/data/README.md), [er_diagram.puml](docs/data/er_diagram.puml), [png](docs/data/er_diagram.png) |
+| Журнал архитектурных решений | [docs/adr](docs/adr) |
+
 ## Структура репозитория
 
 ```
