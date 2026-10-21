@@ -34,7 +34,7 @@ class Block(CreatedAtMixin, Base):
     __table_args__ = (UniqueConstraint("project_id", "name"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("project.id", ondelete="CASCADE"))
+    project_id: Mapped[int] = mapped_column(ForeignKey("project.id", ondelete="CASCADE"), index=True)
     kind: Mapped[BlockKind] = mapped_column(Enum(BlockKind, name="block_kind"))
     name: Mapped[str] = mapped_column(String(100))
     description: Mapped[str | None] = mapped_column(Text)
