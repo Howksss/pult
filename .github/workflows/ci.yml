@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+    tags: ["v*"]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -111,6 +112,40 @@ jobs:
           file="$(deploy/db/backup.sh)"
           deploy/db/restore.sh "$file" pult_restore
           deploy/db/verify.sh pult pult_restore
+
+  images:
+    name: images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: build images and start environment
+        run: |
+          echo "POSTGRES_PASSWORD=ci-password" > deploy/.env
+          docker compose -f deploy/docker-compose.yml up -d --build
+      - name: smoke test without data
+        run: deploy/smoke.sh
+      - name: load demo data and check graph
+        run: |
+          docker compose -f deploy/docker-compose.yml exec -T db psql -U pult -d pult -v ON_ERROR_STOP=1 -q < backend/scripts/seed_demo.sql
+          EXPECT_BLOCKS=8 deploy/smoke.sh
+      - name: environment logs
+        if: failure()
+        run: docker compose -f deploy/docker-compose.yml logs
+      - name: publish images
+        if: github.event_name == 'push'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          tags="sha-${GITHUB_SHA::7}"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then tags="$tags ${GITHUB_REF_NAME#v}"; else tags="$tags main"; fi
+          for name in backend frontend; do
+            for tag in $tags; do
+              docker tag "pult-$name:local" "ghcr.io/howksss/pult-$name:$tag"
+              docker push "ghcr.io/howksss/pult-$name:$tag"
+            done
+          done
 
   hooks:
     name: hooks
