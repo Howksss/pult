@@ -62,3 +62,14 @@ def test_probe_failure_sends_message(client, pilot):
     assert sent[0].url.path == "/botbot-token/sendMessage"
     assert "Сбой блока" in texts[0]
     assert "восстановлен" in texts[1]
+
+
+def test_bot_token_never_reaches_logs(caplog):
+    def broken(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused", request=request)
+
+    client = httpx.Client(base_url="https://api.telegram.org", transport=httpx.MockTransport(broken))
+    with caplog.at_level("WARNING"):
+        assert TelegramNotifier("secret-bot-token", "42", client).send("x") is False
+    assert "ConnectError" in caplog.text
+    assert "secret-bot-token" not in caplog.text
