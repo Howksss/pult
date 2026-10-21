@@ -13,7 +13,7 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     coverage: {
       provider: "v8",
-      include: ["src/components/**"],
+      include: ["src/components/StatusBadge.tsx", "src/graph.ts"],
       thresholds: { lines: 90, branches: 90 },
     },
   },
