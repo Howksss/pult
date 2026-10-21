@@ -1,24 +1,31 @@
-export type BlockStatus = "ok" | "warn" | "fail" | "unknown";
+import { STATUS_PRESENTATION, type BlockStatus } from "../status";
 
-const PRESENTATION: Record<BlockStatus, { label: string; icon: string }> = {
-  ok: { label: "Работает", icon: "✓" },
-  warn: { label: "Предупреждение", icon: "!" },
-  fail: { label: "Сбой", icon: "✕" },
-  unknown: { label: "Нет данных", icon: "?" },
-};
+export type { BlockStatus };
+
+export function StatusIcon({ status }: { status: BlockStatus }) {
+  return (
+    <span className={`status-icon status-icon--${status}`} aria-hidden="true">
+      {STATUS_PRESENTATION[status].icon}
+    </span>
+  );
+}
 
 interface StatusBadgeProps {
   status: BlockStatus;
+  count?: number;
 }
 
-export function StatusBadge({ status }: StatusBadgeProps) {
-  const { label, icon } = PRESENTATION[status];
+export function StatusBadge({ status, count }: StatusBadgeProps) {
+  const { label } = STATUS_PRESENTATION[status];
+  const classes = ["status-badge", `status-badge--${status}`];
+  if (count === 0) {
+    classes.push("status-badge--empty");
+  }
   return (
-    <span className={`status-badge status-badge--${status}`} title={label}>
-      <span className="status-badge__icon" aria-hidden="true">
-        {icon}
-      </span>
+    <span className={classes.join(" ")} title={label}>
+      <StatusIcon status={status} />
       <span className="status-badge__label">{label}</span>
+      {count !== undefined && <span className="status-badge__count">{count}</span>}
     </span>
   );
 }

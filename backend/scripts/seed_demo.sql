@@ -26,14 +26,14 @@ SELECT p.id, b.kind::block_kind, b.name, b.description, b.x, b.y
 FROM project AS p
 CROSS JOIN (
     VALUES
-        ('server', 'VPS', 'Сервер Ubuntu, cron', 0, 160),
-        ('scheduled_job', 'Расчёт плана', 'Прогон в 08:00', 340, 40),
-        ('scheduled_job', 'Автозаказ', 'Прогон в 09:00', 340, 300),
-        ('integration', 'POS-система', 'Продажи и остатки', 720, -140),
-        ('integration', 'Погода API', 'Прогноз на завтра', 720, 20),
-        ('config', 'Конфигурация', 'Настройки и коэффициенты', 720, 180),
-        ('storage', 'Excel-шаблоны', 'Шаблоны планов точек', 720, 340),
-        ('bot', 'Telegram-бот', 'Рассылка планов управляющим', 1100, 160)
+        ('server', 'VPS', 'Сервер Ubuntu, cron', 0, 382),
+        ('scheduled_job', 'Расчёт плана', 'Прогон в 08:00', 360, 170),
+        ('scheduled_job', 'Автозаказ', 'Прогон в 09:00', 360, 595),
+        ('integration', 'Погода API', 'Прогноз на завтра', 820, 0),
+        ('config', 'Конфигурация', 'Настройки и коэффициенты', 820, 170),
+        ('storage', 'Excel-шаблоны', 'Шаблоны планов точек', 820, 340),
+        ('integration', 'POS-система', 'Продажи и остатки', 820, 510),
+        ('bot', 'Telegram-бот', 'Рассылка планов управляющим', 820, 680)
 ) AS b (kind, name, description, x, y);
 
 INSERT INTO block_link (source_block_id, target_block_id, label)

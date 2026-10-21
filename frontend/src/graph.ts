@@ -1,8 +1,16 @@
 import type { Edge, Node } from "@xyflow/react";
-import type { Block, Graph } from "./api";
+import type { Block, Graph, Link } from "./api";
 
 export type BlockNodeData = { block: Block };
 export type BlockNode = Node<BlockNodeData, "block">;
+export type FlowEdgeData = {
+  label: string | null;
+  broken: boolean;
+  active: boolean;
+  dimmed: boolean;
+};
+export type FlowEdge = Edge<FlowEdgeData, "flow">;
+export type Connection = { link: Link; block: Block };
 
 export const KIND_LABELS: Record<Block["kind"], string> = {
   server: "Сервер",
@@ -13,22 +21,81 @@ export const KIND_LABELS: Record<Block["kind"], string> = {
   storage: "Хранилище",
 };
 
-export function toFlow(graph: Graph): { nodes: BlockNode[]; edges: Edge[] } {
-  const nodes: BlockNode[] = graph.blocks.map((block) => ({
+export function toNodes(graph: Graph): BlockNode[] {
+  return graph.blocks.map((block) => ({
     id: String(block.id),
     type: "block",
     position: { x: block.x, y: block.y },
     data: { block },
   }));
+}
+
+export function mergeNodes(current: BlockNode[], incoming: BlockNode[]): BlockNode[] {
+  const byId = new Map(current.map((node) => [node.id, node]));
+  return incoming.map((node) => {
+    const existing = byId.get(node.id);
+    if (!existing) {
+      return node;
+    }
+    const position = existing.dragging ? existing.position : node.position;
+    return { ...existing, position, data: node.data };
+  });
+}
+
+export function neighbourhood(graph: Graph, blockId: number | null): Set<number> | null {
+  if (blockId === null) {
+    return null;
+  }
+  const ids = new Set([blockId]);
+  for (const link of graph.links) {
+    if (link.source_block_id === blockId) {
+      ids.add(link.target_block_id);
+    }
+    if (link.target_block_id === blockId) {
+      ids.add(link.source_block_id);
+    }
+  }
+  return ids;
+}
+
+export function toEdges(graph: Graph, selectedId: number | null): FlowEdge[] {
   const failing = new Set(graph.blocks.filter((b) => b.status === "fail").map((b) => b.id));
-  const edges: Edge[] = graph.links.map((link) => ({
-    id: String(link.id),
-    source: String(link.source_block_id),
-    target: String(link.target_block_id),
-    label: link.label ?? undefined,
-    animated: failing.has(link.target_block_id),
-  }));
-  return { nodes, edges };
+  return graph.links.map((link) => {
+    const touchesSelected =
+      link.source_block_id === selectedId || link.target_block_id === selectedId;
+    return {
+      id: String(link.id),
+      type: "flow",
+      source: String(link.source_block_id),
+      target: String(link.target_block_id),
+      data: {
+        label: link.label,
+        broken: failing.has(link.source_block_id) || failing.has(link.target_block_id),
+        active: touchesSelected,
+        dimmed: selectedId !== null && !touchesSelected,
+      },
+    };
+  });
+}
+
+export function connections(
+  graph: Graph,
+  blockId: number,
+): { incoming: Connection[]; outgoing: Connection[] } {
+  const blocks = new Map(graph.blocks.map((block) => [block.id, block]));
+  const incoming: Connection[] = [];
+  const outgoing: Connection[] = [];
+  for (const link of graph.links) {
+    const source = blocks.get(link.source_block_id);
+    const target = blocks.get(link.target_block_id);
+    if (link.target_block_id === blockId && source) {
+      incoming.push({ link, block: source });
+    }
+    if (link.source_block_id === blockId && target) {
+      outgoing.push({ link, block: target });
+    }
+  }
+  return { incoming, outgoing };
 }
 
 export function countByStatus(graph: Graph): Record<Block["status"], number> {
