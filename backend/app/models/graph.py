@@ -28,6 +28,7 @@ class Project(CreatedAtMixin, Base):
     description: Mapped[str | None] = mapped_column(Text)
     repo_full_name: Mapped[str] = mapped_column(String(200))
     default_branch: Mapped[str] = mapped_column(String(100), default="main")
+    probe_token_hash: Mapped[str | None] = mapped_column(String(64), unique=True)
 
     blocks: Mapped[list["Block"]] = relationship(
         back_populates="project", cascade="all, delete-orphan", order_by="Block.id"

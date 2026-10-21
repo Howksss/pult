@@ -7,12 +7,13 @@ VALUES
     ('owner@example.com', 'Владелец проекта', 'argon2-hash-placeholder'),
     ('client@example.com', 'Управляющий сети', 'argon2-hash-placeholder');
 
-INSERT INTO project (name, description, repo_full_name, default_branch)
+INSERT INTO project (name, description, repo_full_name, default_branch, probe_token_hash)
 VALUES (
     'Пилот: планирование выпечки',
     'Ежедневный расчёт плана выпечки для сети пекарен и рассылка в Telegram',
     'example/pilot-system',
-    'main'
+    'main',
+    encode(sha256('demo-probe-token'::bytea), 'hex')
 );
 
 INSERT INTO project_member (project_id, user_id, role)

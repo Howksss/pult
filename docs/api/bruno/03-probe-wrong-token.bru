@@ -1,0 +1,26 @@
+meta {
+  name: Probe с неверным токеном
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/probe/results
+  body: json
+  auth: none
+}
+
+headers {
+  X-Probe-Token: wrong-token
+}
+
+body:json {
+  {"results": [{"health_check_id": {{posCheckId}}, "status": "fail", "checked_at": "2026-10-21T08:00:00Z"}]}
+}
+
+tests {
+  test("401 в формате problem+json", function () {
+    expect(res.getStatus()).to.equal(401);
+    expect(res.getHeader("content-type")).to.contain("application/problem+json");
+  });
+}

@@ -86,7 +86,7 @@ def test_project_delete_cascades_to_blocks(session):
 
 def test_task_message_content_stored_as_jsonb(session):
     block = make_block(session)
-    user = AppUser(email="owner@example.com", full_name="Owner", password_hash="argon2-hash-placeholder")
+    user = AppUser(email="jsonb-test@example.com", full_name="Owner", password_hash="argon2-hash-placeholder")
     session.add(user)
     session.flush()
     task = AgentTask(block_id=block.id, author_id=user.id, title="Прогон упал")
@@ -105,7 +105,7 @@ def test_task_message_content_stored_as_jsonb(session):
 
 
 def test_user_with_audit_events_cannot_be_deleted(session):
-    user = AppUser(email="dev@example.com", full_name="Dev", password_hash="argon2-hash-placeholder")
+    user = AppUser(email="audit-test@example.com", full_name="Dev", password_hash="argon2-hash-placeholder")
     session.add(user)
     session.flush()
     session.add(AuditEvent(user_id=user.id, action="change_request.approved", payload={"pr": 1}))
