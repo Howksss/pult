@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useLayoutEffect, useState } from "react";
 
 export type Theme = "light" | "dark";
 
@@ -34,7 +34,7 @@ function prefersLight(): boolean {
 export function useTheme(): [Theme, () => void] {
   const [theme, setTheme] = useState<Theme>(() => resolveTheme(readStored(), prefersLight()));
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
