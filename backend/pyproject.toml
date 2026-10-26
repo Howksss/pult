@@ -20,6 +20,28 @@ strict = true
 plugins = ["pydantic.mypy"]
 files = ["app"]
 
+[tool.pylint.main]
+py-version = "3.12"
+load-plugins = ["pylint.extensions.mccabe"]
+
+[tool.pylint.format]
+max-line-length = 110
+
+[tool.pylint.basic]
+class-const-naming-style = "any"
+
+[tool.pylint.design]
+max-complexity = 8
+
+[tool.pylint."messages control"]
+disable = [
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "too-few-public-methods",
+    "unsubscriptable-object",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

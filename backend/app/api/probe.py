@@ -41,21 +41,17 @@ def authenticate(session: Session, token: str | None) -> Project:
     return project
 
 
-@router.post("/results", response_model=ProbeAccepted, status_code=202)
-def submit_results(
-    payload: ProbeBatchIn,
-    session: SessionDep,
-    notifier: NotifierDep,
-    x_probe_token: Annotated[str | None, Header()] = None,
-) -> ProbeAccepted:
-    project = authenticate(session, x_probe_token)
-    check_ids = {result.health_check_id for result in payload.results}
-    rows = session.execute(
-        select(HealthCheck.id, HealthCheck.block_id)
-        .join(Block, Block.id == HealthCheck.block_id)
-        .where(HealthCheck.id.in_(check_ids), Block.project_id == project.id)
-    ).all()
-    owned = {check_id: block_id for check_id, block_id in rows}
+def owned_checks(session: Session, project: Project, check_ids: set[int]) -> dict[int, int]:
+    rows = (
+        session.execute(
+            select(HealthCheck.id, HealthCheck.block_id)
+            .join(Block, Block.id == HealthCheck.block_id)
+            .where(HealthCheck.id.in_(check_ids), Block.project_id == project.id)
+        )
+        .tuples()
+        .all()
+    )
+    owned = dict(rows)
     rejected = sorted(check_ids - owned.keys())
     if rejected:
         raise ProblemError(
@@ -65,8 +61,10 @@ def submit_results(
             "batch contains checks that do not belong to the project",
             [{"health_check_id": check_id, "message": "unknown check"} for check_id in rejected],
         )
+    return owned
 
-    block_ids = sorted(set(owned.values()))
+
+def record_results(session: Session, payload: ProbeBatchIn, block_ids: list[int]) -> list[StatusChange]:
     now = datetime.now(UTC)
     before = block_statuses(session, block_ids, now)
     session.add_all(
@@ -82,20 +80,39 @@ def submit_results(
     session.flush()
     after = block_statuses(session, block_ids, now)
     session.commit()
-
-    changes = [
+    return [
         StatusChange(block_id=block_id, previous=before[block_id], current=after[block_id])
         for block_id in block_ids
         if before[block_id] != after[block_id]
     ]
+
+
+def notify(
+    session: Session, notifier: TelegramNotifier, project: Project, changes: list[StatusChange]
+) -> None:
     notable = [change for change in changes if is_notable(change.previous, change.current)]
-    if notable and notifier.enabled:
-        name_rows = session.execute(
+    if not notable or not notifier.enabled:
+        return
+    names = dict(
+        session.execute(
             select(Block.id, Block.name).where(Block.id.in_([change.block_id for change in notable]))
-        ).all()
-        names = {block_id: name for block_id, name in name_rows}
-        for change in notable:
-            notifier.send(
-                format_message(project.name, names[change.block_id], change.previous, change.current)
-            )
+        )
+        .tuples()
+        .all()
+    )
+    for change in notable:
+        notifier.send(format_message(project.name, names[change.block_id], change.previous, change.current))
+
+
+@router.post("/results", response_model=ProbeAccepted, status_code=202)
+def submit_results(
+    payload: ProbeBatchIn,
+    session: SessionDep,
+    notifier: NotifierDep,
+    x_probe_token: Annotated[str | None, Header()] = None,
+) -> ProbeAccepted:
+    project = authenticate(session, x_probe_token)
+    owned = owned_checks(session, project, {result.health_check_id for result in payload.results})
+    changes = record_results(session, payload, sorted(set(owned.values())))
+    notify(session, notifier, project, changes)
     return ProbeAccepted(accepted=len(payload.results), status_changes=changes)
