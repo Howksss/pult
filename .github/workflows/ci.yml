@@ -62,7 +62,7 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: npm
@@ -159,7 +159,7 @@ jobs:
       - run: pip install pip-audit==2.7.3
       - name: python dependencies
         run: pip-audit -r backend/requirements.txt --strict
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
       - name: npm production dependencies
@@ -178,7 +178,7 @@ jobs:
       - run: pre-commit run --all-files --show-diff-on-failure
         env:
           SKIP: ruff,ruff-format,eslint,prettier
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
       - name: lint API contract
@@ -192,7 +192,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
       - run: npm install --no-save @commitlint/cli@19 @commitlint/config-conventional@19
