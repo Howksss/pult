@@ -1,0 +1,71 @@
+{
+  "version": "2.0.0",
+  "options": { "cwd": "${workspaceFolder}/backend" },
+  "tasks": [
+    {
+      "label": "backend: ruff",
+      "type": "process",
+      "command": "${command:python.interpreterPath}",
+      "args": ["-m", "ruff", "check", "."],
+      "problemMatcher": []
+    },
+    {
+      "label": "backend: ruff format",
+      "type": "process",
+      "command": "${command:python.interpreterPath}",
+      "args": ["-m", "ruff", "format", "--check", "."],
+      "problemMatcher": []
+    },
+    {
+      "label": "backend: mypy",
+      "type": "process",
+      "command": "${command:python.interpreterPath}",
+      "args": ["-m", "mypy"],
+      "problemMatcher": []
+    },
+    {
+      "label": "backend: pylint",
+      "type": "process",
+      "command": "${command:python.interpreterPath}",
+      "args": ["-m", "pylint", "app"],
+      "problemMatcher": []
+    },
+    {
+      "label": "backend: проверки",
+      "dependsOrder": "sequence",
+      "dependsOn": ["backend: ruff", "backend: ruff format", "backend: mypy", "backend: pylint"],
+      "problemMatcher": []
+    },
+    {
+      "label": "backend: тесты",
+      "type": "process",
+      "command": "${command:python.interpreterPath}",
+      "args": ["-m", "pytest"],
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "frontend: проверки",
+      "type": "npm",
+      "script": "lint",
+      "path": "frontend",
+      "problemMatcher": ["$eslint-stylish"]
+    },
+    {
+      "label": "frontend: тесты",
+      "type": "npm",
+      "script": "test",
+      "path": "frontend",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "pre-commit: все файлы",
+      "type": "process",
+      "command": "${command:python.interpreterPath}",
+      "args": ["-m", "pre_commit", "run", "--all-files"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    }
+  ]
+}
