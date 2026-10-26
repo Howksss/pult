@@ -45,6 +45,7 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy
+      - run: pylint app
       - name: migrations
         run: |
           alembic upgrade head
