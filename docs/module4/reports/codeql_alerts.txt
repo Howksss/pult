@@ -1,0 +1,13 @@
+CodeQL (GitHub code scanning), открытые замечания до разбора, 27.10.2026
+#1	note	py/unused-global-variable	backend/migrations/versions/0001_initial_schema.py:7	The global variable 'revision' is not used.
+#2	note	py/unused-global-variable	backend/migrations/versions/0001_initial_schema.py:8	The global variable 'down_revision' is not used.
+#3	note	py/unused-global-variable	backend/migrations/versions/0001_initial_schema.py:9	The global variable 'branch_labels' is not used.
+#4	note	py/unused-global-variable	backend/migrations/versions/0001_initial_schema.py:10	The global variable 'depends_on' is not used.
+#5	note	py/unused-global-variable	backend/migrations/versions/0002_block_status_view.py:6	The global variable 'revision' is not used.
+#6	note	py/unused-global-variable	backend/migrations/versions/0002_block_status_view.py:7	The global variable 'down_revision' is not used.
+#7	note	py/unused-global-variable	backend/migrations/versions/0002_block_status_view.py:8	The global variable 'branch_labels' is not used.
+#8	note	py/unused-global-variable	backend/migrations/versions/0002_block_status_view.py:9	The global variable 'depends_on' is not used.
+#9	note	py/unused-global-variable	backend/migrations/versions/0003_probe_token.py:6	The global variable 'revision' is not used.
+#10	note	py/unused-global-variable	backend/migrations/versions/0003_probe_token.py:7	The global variable 'down_revision' is not used.
+#11	note	py/unused-global-variable	backend/migrations/versions/0003_probe_token.py:8	The global variable 'branch_labels' is not used.
+#12	note	py/unused-global-variable	backend/migrations/versions/0003_probe_token.py:9	The global variable 'depends_on' is not used.

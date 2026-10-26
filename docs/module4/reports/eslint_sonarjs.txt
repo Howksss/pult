@@ -1,0 +1,7 @@
+$ npx eslint . --max-warnings 0   # recommended-правила SonarJS включены в eslint.config.js
+exit code: 0
+
+$ npx eslint --print-config src/App.tsx | grep -c "\"sonarjs/"
+295
+
+Проверено файлов: 22, ошибок 0, предупреждений 0
