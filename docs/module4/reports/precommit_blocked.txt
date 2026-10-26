@@ -1,0 +1,46 @@
+$ git commit -m "feat(#75): черновик сводки"
+trim trailing whitespace.................................................Passed
+fix end of files.........................................................Passed
+check for merge conflicts................................................Passed
+check for added large files..............................................Passed
+detect private key.......................................................Passed
+ruff.....................................................................Failed
+- hook id: ruff
+- exit code: 1
+- files were modified by this hook
+
+backend\app\draft.py:4:21: E701 Multiple statements on one line (colon)
+  |
+2 | def summary(items):
+3 |     result = dict()
+4 |     for k,v in items: result[k]=v
+  |                     ^ E701
+5 |     return result
+  |
+
+Found 2 errors (1 fixed, 1 remaining).
+
+ruff-format..............................................................Failed
+- hook id: ruff-format
+- files were modified by this hook
+
+1 file reformatted
+
+exit code: 1
+
+$ git commit --allow-empty -m "поправил всякое"
+check for merge conflicts................................................Passed
+detect private key.......................................................Passed
+commitlint...............................................................Failed
+- hook id: commitlint
+- exit code: 1
+
+⧗   --- input ---
+поправил всякое
+✖   subject may not be empty [subject-empty]
+✖   type may not be empty [type-empty]
+
+✖   found 2 problems, 0 warnings
+ⓘ   Get help: https://github.com/conventional-changelog/commitlint/#what-is-commitlint
+
+exit code: 1
