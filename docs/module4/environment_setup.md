@@ -73,6 +73,6 @@ cd .. && pre-commit install
 cd frontend && npm ci
 ```
 
-В VS Code: принять рекомендованные расширения, выбрать интерпретатор `backend/.venv` (Python: Select Interpreter). Задачи `.vscode/tasks.json` берут Python из выбранного интерпретатора.
+В VS Code: принять рекомендованные расширения, выбрать интерпретатор `backend/.venv` (Python: Select Interpreter). Задачи `.vscode/tasks.json` запускают Python прямо из `backend/.venv` (на Windows `Scripts/python.exe`, на Linux и macOS `bin/python`) и от выбранного интерпретатора не зависят. Раньше они брали путь из `${command:python.interpreterPath}`, но на Windows расширение возвращало его с диском в нижнем регистре, и VS Code склеивал его с рабочей папкой (#85).
 
 Тесты на PostgreSQL (`test_pg_*`) запускаются, только если задан `TEST_DATABASE_URL` с базой после `alembic upgrade head`. Без него они пропускаются, в CI идут всегда.
