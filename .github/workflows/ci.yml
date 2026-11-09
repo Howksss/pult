@@ -110,9 +110,13 @@ jobs:
       - run: psql -X -c "select name, status from v_block_status order by block_id"
       - name: backup, restore, verify
         run: |
-          file="$(deploy/db/backup.sh)"
-          deploy/db/restore.sh "$file" pult_restore
-          deploy/db/verify.sh pult pult_restore
+          docker run --rm --network host -v "$PWD:/w" -w /w \
+            -e PGHOST -e PGUSER -e PGPASSWORD -e PGDATABASE \
+            postgres:16 bash -c '
+              file="$(deploy/db/backup.sh)"
+              deploy/db/restore.sh "$file" pult_restore
+              deploy/db/verify.sh pult pult_restore
+            '
 
   images:
     name: images
