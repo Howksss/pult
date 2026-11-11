@@ -5,7 +5,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
+FROM nginxinc/nginx-unprivileged:1.31-alpine AS runtime
 LABEL org.opencontainers.image.source="https://github.com/Howksss/pult" \
       org.opencontainers.image.description="Pult web UI" \
       org.opencontainers.image.licenses="MIT"
