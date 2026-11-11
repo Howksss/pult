@@ -5,28 +5,32 @@
     {
       "label": "backend: ruff",
       "type": "process",
-      "command": "${command:python.interpreterPath}",
+      "command": "${workspaceFolder}/backend/.venv/bin/python",
+      "windows": { "command": "${workspaceFolder}/backend/.venv/Scripts/python.exe" },
       "args": ["-m", "ruff", "check", "."],
       "problemMatcher": []
     },
     {
       "label": "backend: ruff format",
       "type": "process",
-      "command": "${command:python.interpreterPath}",
+      "command": "${workspaceFolder}/backend/.venv/bin/python",
+      "windows": { "command": "${workspaceFolder}/backend/.venv/Scripts/python.exe" },
       "args": ["-m", "ruff", "format", "--check", "."],
       "problemMatcher": []
     },
     {
       "label": "backend: mypy",
       "type": "process",
-      "command": "${command:python.interpreterPath}",
+      "command": "${workspaceFolder}/backend/.venv/bin/python",
+      "windows": { "command": "${workspaceFolder}/backend/.venv/Scripts/python.exe" },
       "args": ["-m", "mypy"],
       "problemMatcher": []
     },
     {
       "label": "backend: pylint",
       "type": "process",
-      "command": "${command:python.interpreterPath}",
+      "command": "${workspaceFolder}/backend/.venv/bin/python",
+      "windows": { "command": "${workspaceFolder}/backend/.venv/Scripts/python.exe" },
       "args": ["-m", "pylint", "app"],
       "problemMatcher": []
     },
@@ -39,7 +43,8 @@
     {
       "label": "backend: тесты",
       "type": "process",
-      "command": "${command:python.interpreterPath}",
+      "command": "${workspaceFolder}/backend/.venv/bin/python",
+      "windows": { "command": "${workspaceFolder}/backend/.venv/Scripts/python.exe" },
       "args": ["-m", "pytest"],
       "group": { "kind": "test", "isDefault": true },
       "problemMatcher": []
@@ -62,7 +67,8 @@
     {
       "label": "pre-commit: все файлы",
       "type": "process",
-      "command": "${command:python.interpreterPath}",
+      "command": "${workspaceFolder}/backend/.venv/bin/python",
+      "windows": { "command": "${workspaceFolder}/backend/.venv/Scripts/python.exe" },
       "args": ["-m", "pre_commit", "run", "--all-files"],
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": []
