@@ -1,16 +1,25 @@
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+import httpx
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, aliased
 
+from app import __version__
 from app.api.graph import load_block
-from app.api.schemas import BlockChecksOut, CheckOut, HistoryPoint, ResultOut
+from app.api.probe import NotifierDep
+from app.api.problems import ProblemError, not_found
+from app.api.schemas import BlockChecksOut, CheckCreate, CheckOut, CheckUpdate, HistoryPoint, ResultOut
+from app.core.config import get_settings
 from app.db import get_session
-from app.models import CheckResult, HealthCheck
+from app.models import Block, CheckResult, HealthCheck, Project
+from app.services.check_config import internal_target, normalize_config, normalize_target
+from app.services.checks import PULL_METHODS, Guard, Outcome, run_check
 from app.services.graph_status import CheckState, check_state, check_title
+from app.services.results import NewResult, notify, record_results
 from app.services.status import SEVERITY, BlockStatus
 
 router = APIRouter(prefix="/api/v1", tags=["checks"])
@@ -91,3 +100,105 @@ def list_block_checks(block_id: int, session: SessionDep) -> BlockChecksOut:
     items = [check_out(check, results.get(check.id, []), now) for check in checks]
     items.sort(key=lambda item: (not item.enabled, -SEVERITY[item.status], item.id))
     return BlockChecksOut(block_id=block_id, generated_at=now, checks=items)
+
+
+CheckRunner = Callable[[HealthCheck], Outcome]
+
+
+def get_runner() -> CheckRunner:
+    guard = Guard(allow_private=get_settings().allow_private_targets)
+
+    def run(check: HealthCheck) -> Outcome:
+        with httpx.Client(headers={"User-Agent": f"Pult/{__version__} health check"}) as client:
+            return run_check(check, client, guard)
+
+    return run
+
+
+RunnerDep = Annotated[CheckRunner, Depends(get_runner)]
+
+
+def load_check(session: Session, check_id: int) -> HealthCheck:
+    check = session.get(HealthCheck, check_id)
+    if check is None:
+        raise not_found("check", check_id)
+    return check
+
+
+def invalid(detail: str) -> ProblemError:
+    return ProblemError(422, "validation", "Unprocessable Entity", detail)
+
+
+def guard_target(check: HealthCheck) -> None:
+    if not get_settings().allow_private_targets and internal_target(check.method, check.target):
+        raise invalid("адрес во внутренней сети: такие проверки запрещены")
+
+
+def fresh_out(session: Session, check: HealthCheck) -> CheckOut:
+    return check_out(check, recent_results(session, [check.id]).get(check.id, []), datetime.now(UTC))
+
+
+@router.post("/blocks/{block_id}/checks", response_model=CheckOut, status_code=201)
+def create_check(block_id: int, payload: CheckCreate, session: SessionDep) -> CheckOut:
+    load_block(session, block_id)
+    check = HealthCheck(block_id=block_id, **payload.model_dump())
+    guard_target(check)
+    session.add(check)
+    session.commit()
+    return fresh_out(session, check)
+
+
+@router.patch("/checks/{check_id}", response_model=CheckOut)
+def update_check(check_id: int, payload: CheckUpdate, session: SessionDep) -> CheckOut:
+    check = load_check(session, check_id)
+    changes = payload.model_dump(exclude_unset=True)
+    try:
+        if "target" in changes:
+            changes["target"] = normalize_target(check.method, changes["target"] or "")
+        if "config" in changes:
+            changes["config"] = normalize_config(check.method, changes["config"] or {})
+    except ValueError as error:
+        raise invalid(str(error)) from error
+    if "name" in changes:
+        changes["name"] = (changes["name"] or "").strip() or None
+    for key, value in changes.items():
+        if value is not None or key == "name":
+            setattr(check, key, value)
+    guard_target(check)
+    session.commit()
+    return fresh_out(session, check)
+
+
+@router.delete("/checks/{check_id}", status_code=204)
+def delete_check(check_id: int, session: SessionDep) -> Response:
+    session.delete(load_check(session, check_id))
+    session.commit()
+    return Response(status_code=204)
+
+
+@router.post("/checks/{check_id}/run", response_model=CheckOut)
+def run_check_now(check_id: int, session: SessionDep, runner: RunnerDep, notifier: NotifierDep) -> CheckOut:
+    check = load_check(session, check_id)
+    if check.method not in PULL_METHODS:
+        raise ProblemError(
+            409,
+            "client-reported",
+            "Conflict",
+            "this check is reported by the client server, Pult cannot run it",
+        )
+    outcome = runner(check)
+    result = NewResult(
+        health_check_id=check.id,
+        status=outcome.status,
+        checked_at=datetime.now(UTC),
+        latency_ms=outcome.latency_ms,
+        message=outcome.message,
+        error_kind=outcome.error_kind,
+        details=outcome.details or None,
+    )
+    changes = record_results(session, [result], [check.block_id])
+    block = session.get(Block, check.block_id)
+    project = session.get(Project, block.project_id) if block else None
+    if project is not None:
+        notify(session, notifier, project, changes)
+    return fresh_out(session, check)

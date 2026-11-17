@@ -2,9 +2,10 @@ import json
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models import BlockKind, CheckMethod, CheckStatus
+from app.services.check_config import normalize_config, normalize_target
 from app.services.status import BlockStatus
 
 DETAILS_LIMIT = 8000
@@ -131,3 +132,42 @@ class BlockChecksOut(BaseModel):
     block_id: int
     generated_at: datetime
     checks: list[CheckOut]
+
+
+def blank_to_none(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
+class CheckCreate(StrictModel):
+    name: str | None = Field(default=None, max_length=120)
+    method: CheckMethod
+    target: str = Field(min_length=1, max_length=500)
+    interval_sec: int = Field(default=60, ge=10, le=604_800)
+    timeout_sec: int = Field(default=10, ge=1, le=60)
+    enabled: bool = True
+    config: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def valid_for_method(self) -> "CheckCreate":
+        self.name = blank_to_none(self.name)
+        self.target = normalize_target(self.method, self.target)
+        self.config = normalize_config(self.method, self.config)
+        return self
+
+
+class CheckUpdate(StrictModel):
+    name: str | None = Field(default=None, max_length=120)
+    target: str | None = Field(default=None, min_length=1, max_length=500)
+    interval_sec: int | None = Field(default=None, ge=10, le=604_800)
+    timeout_sec: int | None = Field(default=None, ge=1, le=60)
+    enabled: bool | None = None
+    config: dict[str, Any] | None = None
+
+    @model_validator(mode="after")
+    def not_empty(self) -> "CheckUpdate":
+        if not self.model_fields_set:
+            raise ValueError("нужно передать хотя бы одно поле")
+        return self

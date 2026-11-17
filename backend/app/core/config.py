@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     check_interval_sec: int = 60
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+    allow_private_targets: bool = False
 
 
 @lru_cache

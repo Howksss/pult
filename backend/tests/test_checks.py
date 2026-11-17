@@ -6,9 +6,26 @@ import httpx
 import pytest
 
 from app.models import CheckMethod, CheckStatus, HealthCheck
-from app.services.checks import network_failure, run_check, run_http, run_tcp, run_tls, seconds, split_host
+from app.services.checks import (
+    Guard,
+    is_public,
+    network_failure,
+    resolve_addresses,
+    run_check,
+    run_http,
+    run_tcp,
+    run_tls,
+    seconds,
+    split_host,
+)
 
 NOW = datetime(2026, 11, 17, 8, 0, tzinfo=UTC)
+PUBLIC = "93.184.216.34"
+
+
+@pytest.fixture(autouse=True)
+def public_dns(monkeypatch):
+    monkeypatch.setattr("app.services.checks.resolve_addresses", lambda host, port: [PUBLIC])
 
 
 def make_check(
@@ -144,7 +161,7 @@ def certificate(not_after: str) -> dict:
 )
 def test_tls_expiry_thresholds(not_after, status, kind, message):
     check = make_check(CheckMethod.tls, "pos.example")
-    outcome = run_tls(check, fetch=lambda host, port, timeout: certificate(not_after), now=NOW)
+    outcome = run_tls(check, fetch=lambda host, address, port, timeout: certificate(not_after), now=NOW)
     assert (outcome.status, outcome.error_kind, outcome.message) == (status, kind, message)
     assert outcome.details["issuer"] == "Let's Encrypt"
     assert outcome.details["subject"] == "pos.example"
@@ -154,7 +171,7 @@ def test_tls_expiry_thresholds(not_after, status, kind, message):
 def test_tls_thresholds_come_from_config():
     check = make_check(CheckMethod.tls, "pos.example:8443", {"warn_days": 120, "fail_days": 30})
     outcome = run_tls(
-        check, fetch=lambda host, port, timeout: certificate("Feb 15 08:00:00 2027 GMT"), now=NOW
+        check, fetch=lambda host, address, port, timeout: certificate("Feb 15 08:00:00 2027 GMT"), now=NOW
     )
     assert outcome.status is CheckStatus.warn
     assert outcome.details["port"] == 8443
@@ -164,7 +181,7 @@ def test_tls_verification_error_names_the_reason():
     error = ssl.SSLCertVerificationError(1, "certificate verify failed")
     error.verify_message = "certificate has expired"
 
-    def fetch(host, port, timeout):
+    def fetch(host, address, port, timeout):
         raise error
 
     outcome = run_tls(make_check(CheckMethod.tls, "pos.example"), fetch=fetch, now=NOW)
@@ -173,7 +190,7 @@ def test_tls_verification_error_names_the_reason():
 
 
 def test_tls_unknown_host_is_dns_failure():
-    def fetch(host, port, timeout):
+    def fetch(host, address, port, timeout):
         raise socket.gaierror(11001, "getaddrinfo failed")
 
     outcome = run_tls(make_check(CheckMethod.tls, "pos.example"), fetch=fetch, now=NOW)
@@ -215,8 +232,8 @@ def test_tcp_failures(error, kind, message):
 
 
 def test_run_check_dispatches_by_method(monkeypatch):
-    monkeypatch.setattr("app.services.checks.run_tls", lambda check: "tls")
-    monkeypatch.setattr("app.services.checks.run_tcp", lambda check: "tcp")
+    monkeypatch.setattr("app.services.checks.run_tls", lambda check, guard: "tls")
+    monkeypatch.setattr("app.services.checks.run_tcp", lambda check, guard: "tcp")
     client = client_for(respond(200))
     assert run_check(make_check(CheckMethod.http, "https://pos.example"), client).status is CheckStatus.ok
     assert run_check(make_check(CheckMethod.tls, "pos.example"), client) == "tls"
@@ -249,3 +266,120 @@ def test_unknown_error_text_is_cut():
     kind, message = network_failure(OSError("x" * 500), "pos.example", 10)
     assert kind == "connection"
     assert len(message) == len("Не удалось подключиться: ") + 200
+
+
+def test_http_request_is_pinned_to_checked_address_with_original_host():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["host"] = request.url.host
+        seen["header"] = request.headers["host"]
+        seen["sni"] = request.extensions.get("sni_hostname")
+        return httpx.Response(200, text="ok")
+
+    run_http(make_check(CheckMethod.http, "https://pos.example:8443/ping"), client_for(handler))
+    assert seen == {"host": PUBLIC, "header": "pos.example:8443", "sni": "pos.example"}
+
+
+@pytest.mark.parametrize(
+    "address", ["127.0.0.1", "10.0.0.5", "192.168.1.10", "169.254.169.254", "::1", "::ffff:10.0.0.1"]
+)
+def test_internal_addresses_are_blocked_for_every_method(address):
+    guard = Guard(resolve=lambda host, port: [address])
+    called = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        called.append(request)
+        return httpx.Response(200)
+
+    http = run_http(make_check(CheckMethod.http, "https://pos.example"), client_for(handler), guard)
+    tls = run_tls(
+        make_check(CheckMethod.tls, "pos.example"), fetch=lambda *args: called.append(args), guard=guard
+    )
+    tcp = run_tcp(
+        make_check(CheckMethod.tcp, "pos.example:22"),
+        open_connection=lambda *args: called.append(args),
+        guard=guard,
+    )
+    for outcome in (http, tls, tcp):
+        assert (outcome.status, outcome.error_kind) == (CheckStatus.fail, "blocked")
+        assert outcome.message == f"Адрес {address} во внутренней сети, такие проверки запрещены"
+        assert outcome.details["address"] == address
+    assert called == []
+
+
+def test_any_internal_address_among_several_blocks():
+    guard = Guard(resolve=lambda host, port: [PUBLIC, "10.1.2.3"])
+    outcome = run_tcp(
+        make_check(CheckMethod.tcp, "pos.example:22"), open_connection=lambda *a: FakeSocket(), guard=guard
+    )
+    assert outcome.error_kind == "blocked"
+
+
+def test_redirect_into_internal_network_is_blocked():
+    def resolve(host, port):
+        return ["127.0.0.1"] if host == "internal.example" else [PUBLIC]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers={"location": "http://internal.example:8000/admin"})
+
+    outcome = run_http(
+        make_check(CheckMethod.http, "https://pos.example"), client_for(handler), Guard(resolve=resolve)
+    )
+    assert outcome.error_kind == "blocked"
+    assert outcome.details["address"] == "127.0.0.1"
+
+
+def test_private_addresses_allowed_when_configured():
+    guard = Guard(allow_private=True, resolve=lambda host, port: ["127.0.0.1"])
+    outcome = run_http(
+        make_check(CheckMethod.http, "http://localhost:8000/api/health"), client_for(respond(200)), guard
+    )
+    assert outcome.status is CheckStatus.ok
+
+
+def test_endless_redirects_stop():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(301, headers={"location": "/again"})
+
+    outcome = run_http(make_check(CheckMethod.http, "https://pos.example/start"), client_for(handler))
+    assert (outcome.status, outcome.message) == (CheckStatus.fail, "Больше 5 перенаправлений подряд")
+
+
+def test_redirect_to_other_scheme_is_final():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers={"location": "ftp://files.example/plan.xlsx"})
+
+    outcome = run_http(make_check(CheckMethod.http, "https://pos.example"), client_for(handler))
+    assert outcome.details["final_url"] == "ftp://files.example/plan.xlsx"
+
+
+def test_empty_dns_answer_is_dns_failure():
+    outcome = run_tcp(
+        make_check(CheckMethod.tcp, "pos.example:22"), guard=Guard(resolve=lambda host, port: [])
+    )
+    assert outcome.error_kind == "dns"
+
+
+@pytest.mark.parametrize(
+    ("address", "public"),
+    [
+        (PUBLIC, True),
+        ("10.0.0.1", False),
+        ("fe80::1%eth0", False),
+        ("224.0.0.1", False),
+        ("2606:4700::1111", True),
+    ],
+)
+def test_is_public(address, public):
+    assert is_public(address) is public
+
+
+def test_resolve_addresses_deduplicates(monkeypatch):
+    infos = [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", (PUBLIC, 443)),
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", (PUBLIC, 443)),
+        (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("2606:4700::1111", 443, 0, 0)),
+    ]
+    monkeypatch.setattr("app.services.checks.socket.getaddrinfo", lambda *args, **kwargs: infos)
+    assert resolve_addresses("pos.example", 443) == [PUBLIC, "2606:4700::1111"]

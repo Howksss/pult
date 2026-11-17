@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { Graph } from "../api";
+import { defaultChecksApi, type Graph } from "../api";
 import { Inspector } from "./Inspector";
 
 const graph: Graph = {
@@ -58,15 +58,18 @@ function renderInspector(blockId: number) {
   if (!block) {
     throw new Error(`block ${blockId} not found`);
   }
-  const loadChecks = () =>
-    Promise.resolve({ block_id: blockId, generated_at: graph.generated_at, checks: [] });
+  const checksApi = {
+    ...defaultChecksApi,
+    load: () =>
+      Promise.resolve({ block_id: blockId, generated_at: graph.generated_at, checks: [] }),
+  };
   render(
     <Inspector
       graph={graph}
       block={block}
       onSelect={onSelect}
       onClose={onClose}
-      loadChecks={loadChecks}
+      checksApi={checksApi}
     />,
   );
   return { onSelect, onClose };

@@ -164,6 +164,95 @@ paths:
                 $ref: "#/components/schemas/BlockChecks"
         "404":
           $ref: "#/components/responses/NotFound"
+    post:
+      tags: [checks]
+      operationId: createCheck
+      security: []
+      summary: Добавить проверку блоку
+      description: |
+        Цель и настройки проверяются по типу. Адреса во внутренней сети (localhost, частные, link-local)
+        отклоняются, если на сервере не включён ALLOW_PRIVATE_TARGETS.
+      parameters:
+        - $ref: "#/components/parameters/BlockId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckCreate"
+      responses:
+        "201":
+          description: Проверка создана
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Check"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/checks/{check_id}:
+    patch:
+      tags: [checks]
+      operationId: updateCheck
+      security: []
+      summary: Изменить проверку
+      description: Тип проверки не меняется — для другого типа создаётся новая проверка.
+      parameters:
+        - $ref: "#/components/parameters/CheckId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckUpdate"
+      responses:
+        "200":
+          description: Проверка изменена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Check"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      tags: [checks]
+      operationId: deleteCheck
+      security: []
+      summary: Удалить проверку вместе с историей
+      parameters:
+        - $ref: "#/components/parameters/CheckId"
+      responses:
+        "204":
+          description: Проверка удалена
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/checks/{check_id}/run:
+    post:
+      tags: [checks]
+      operationId: runCheck
+      security: []
+      summary: Выполнить проверку сейчас
+      description: Только для http, tls, tcp. Остальные присылает сервер клиента — ответ 409.
+      parameters:
+        - $ref: "#/components/parameters/CheckId"
+      responses:
+        "200":
+          description: Проверка выполнена, результат записан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Check"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Проверку присылает сервер клиента, Pult её не выполняет
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
   /api/v1/projects/{project_id}/links:
     post:
       tags: [graph]
@@ -237,6 +326,13 @@ components:
         minimum: 1
     BlockId:
       name: block_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    CheckId:
+      name: check_id
       in: path
       required: true
       schema:
@@ -552,6 +648,64 @@ components:
           maxItems: 40
           items:
             $ref: "#/components/schemas/HistoryPoint"
+    CheckCreate:
+      type: object
+      required: [method, target]
+      additionalProperties: false
+      properties:
+        name:
+          type: [string, "null"]
+          maxLength: 120
+        method:
+          $ref: "#/components/schemas/CheckMethod"
+        target:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: http — URL, tls — хост или хост:порт, tcp — хост:порт, остальные — свободный текст
+        interval_sec:
+          type: integer
+          minimum: 10
+          maximum: 604800
+          default: 60
+        timeout_sec:
+          type: integer
+          minimum: 1
+          maximum: 60
+          default: 10
+        enabled:
+          type: boolean
+          default: true
+        config:
+          type: object
+          description: |
+            http — method (GET, HEAD), expect_status (до 10 кодов), contains (до 200 символов), warn_latency_ms;
+            tls — warn_days (1–365, по умолчанию 14), fail_days (меньше warn_days, по умолчанию 3);
+            остальные типы — пустой объект.
+    CheckUpdate:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        name:
+          type: [string, "null"]
+          maxLength: 120
+        target:
+          type: string
+          minLength: 1
+          maxLength: 500
+        interval_sec:
+          type: integer
+          minimum: 10
+          maximum: 604800
+        timeout_sec:
+          type: integer
+          minimum: 1
+          maximum: 60
+        enabled:
+          type: boolean
+        config:
+          type: object
     BlockChecks:
       type: object
       required: [block_id, generated_at, checks]

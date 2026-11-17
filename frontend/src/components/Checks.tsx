@@ -1,7 +1,23 @@
-import { useEffect, useState } from "react";
-import { fetchChecks, type BlockChecks, type Check, type HistoryPoint } from "../api";
-import { excerpt, facts, formatAgo, formatDuration, METHOD_LABELS } from "../checks";
+import { useCallback, useEffect, useState } from "react";
+import {
+  defaultChecksApi,
+  type BlockChecks,
+  type Check,
+  type CheckPatch,
+  type ChecksApi,
+  type HistoryPoint,
+} from "../api";
+import {
+  cronLine,
+  excerpt,
+  facts,
+  formatAgo,
+  formatDuration,
+  METHOD_LABELS,
+  PULL_METHODS,
+} from "../checks";
 import { STATUS_PRESENTATION } from "../status";
+import { CheckForm } from "./CheckForm";
 import { StatusDot } from "./StatusBadge";
 
 function History({ points, now }: { points: HistoryPoint[]; now: Date }) {
@@ -27,12 +43,60 @@ function History({ points, now }: { points: HistoryPoint[]; now: Date }) {
   );
 }
 
-export function CheckItem({ check, now }: { check: Check; now: Date }) {
+interface CheckItemProps {
+  check: Check;
+  now: Date;
+  api: ChecksApi;
+  onChanged: () => void;
+}
+
+export function CheckItem({ check, now, api, onChanged }: CheckItemProps) {
   const [open, setOpen] = useState(check.status !== "ok");
+  const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const details = check.last?.details ?? null;
   const list = facts(details);
   const quote = excerpt(details);
   const latency = check.last?.latency_ms ?? null;
+  const pull = PULL_METHODS.has(check.method);
+
+  const act = (label: string, action: () => Promise<unknown>) => {
+    setBusy(label);
+    setError(null);
+    action()
+      .then(onChanged)
+      .catch((reason: unknown) =>
+        setError(reason instanceof Error ? reason.message : String(reason)),
+      )
+      .finally(() => setBusy(null));
+  };
+
+  if (editing) {
+    return (
+      <li className="check">
+        <CheckForm
+          initial={check}
+          onCancel={() => setEditing(false)}
+          onSubmit={(input) => {
+            const patch: CheckPatch = {
+              name: input.name,
+              target: input.target,
+              interval_sec: input.interval_sec,
+              timeout_sec: input.timeout_sec,
+              config: input.config,
+            };
+            return api.update(check.id, patch).then(() => {
+              setEditing(false);
+              onChanged();
+            });
+          }}
+        />
+      </li>
+    );
+  }
+
   return (
     <li className={`check check--${check.status}${check.enabled ? "" : " check--off"}`}>
       <button
@@ -73,6 +137,64 @@ export function CheckItem({ check, now }: { check: Check; now: Date }) {
             </figure>
           )}
           <History points={check.history} now={now} />
+          {!pull && (
+            <figure className="check__excerpt">
+              <figcaption>Строка для cron на сервере</figcaption>
+              <pre>{cronLine(check)}</pre>
+            </figure>
+          )}
+          {error && (
+            <p className="check-form__error" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="check__actions">
+            {confirming ? (
+              <>
+                <span className="check__confirm">Удалить вместе с историей?</span>
+                <button
+                  type="button"
+                  className="text-button text-button--danger"
+                  disabled={busy !== null}
+                  onClick={() => act("remove", () => api.remove(check.id))}
+                >
+                  Удалить
+                </button>
+                <button type="button" className="text-button" onClick={() => setConfirming(false)}>
+                  Отмена
+                </button>
+              </>
+            ) : (
+              <>
+                {pull && check.enabled && (
+                  <button
+                    type="button"
+                    className="text-button"
+                    disabled={busy !== null}
+                    onClick={() => act("run", () => api.run(check.id))}
+                  >
+                    {busy === "run" ? "Проверяем…" : "Проверить сейчас"}
+                  </button>
+                )}
+                <button type="button" className="text-button" onClick={() => setEditing(true)}>
+                  Изменить
+                </button>
+                <button
+                  type="button"
+                  className="text-button"
+                  disabled={busy !== null}
+                  onClick={() =>
+                    act("toggle", () => api.update(check.id, { enabled: !check.enabled }))
+                  }
+                >
+                  {check.enabled ? "Выключить" : "Включить"}
+                </button>
+                <button type="button" className="text-button" onClick={() => setConfirming(true)}>
+                  Удалить
+                </button>
+              </>
+            )}
+          </div>
         </div>
       )}
     </li>
@@ -82,21 +204,26 @@ export function CheckItem({ check, now }: { check: Check; now: Date }) {
 interface ChecksPanelProps {
   blockId: number;
   refreshKey: string;
-  load?: (blockId: number, signal: AbortSignal) => Promise<BlockChecks>;
+  api?: ChecksApi;
 }
 
-export function ChecksPanel({ blockId, refreshKey, load = fetchChecks }: ChecksPanelProps) {
+export function ChecksPanel({ blockId, refreshKey, api = defaultChecksApi }: ChecksPanelProps) {
   const [data, setData] = useState<BlockChecks | null>(null);
   const [failed, setFailed] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [version, setVersion] = useState(0);
+  const reload = useCallback(() => setVersion((value) => value + 1), []);
 
   useEffect(() => {
     setData(null);
     setFailed(false);
+    setAdding(false);
   }, [blockId]);
 
   useEffect(() => {
     const controller = new AbortController();
-    load(blockId, controller.signal)
+    api
+      .load(blockId, controller.signal)
       .then((result) => {
         setData(result);
         setFailed(false);
@@ -107,25 +234,43 @@ export function ChecksPanel({ blockId, refreshKey, load = fetchChecks }: ChecksP
         }
       });
     return () => controller.abort();
-  }, [blockId, refreshKey, load]);
+  }, [blockId, refreshKey, api, version]);
 
   const checks = data?.block_id === blockId ? data.checks : null;
   const now = new Date(data?.generated_at ?? Date.now());
   return (
     <section className="inspector__section">
-      <h3 className="inspector__heading">
-        Проверки
-        {checks && <span className="inspector__heading-count">{checks.length}</span>}
-      </h3>
+      <div className="inspector__section-head">
+        <h3 className="inspector__heading">
+          Проверки
+          {checks && <span className="inspector__heading-count">{checks.length}</span>}
+        </h3>
+        {!adding && (
+          <button type="button" className="text-button" onClick={() => setAdding(true)}>
+            Добавить проверку
+          </button>
+        )}
+      </div>
+      {adding && (
+        <CheckForm
+          onCancel={() => setAdding(false)}
+          onSubmit={(input) =>
+            api.create(blockId, input).then(() => {
+              setAdding(false);
+              reload();
+            })
+          }
+        />
+      )}
       {failed && !checks && <p className="inspector__empty">Не удалось загрузить проверки</p>}
       {!failed && !checks && <p className="inspector__empty">Загружаем проверки…</p>}
-      {checks && checks.length === 0 && (
+      {checks && checks.length === 0 && !adding && (
         <p className="inspector__empty">Проверок нет: статус блока неизвестен</p>
       )}
       {checks && checks.length > 0 && (
         <ul className="check-list">
           {checks.map((check) => (
-            <CheckItem key={check.id} check={check} now={now} />
+            <CheckItem key={check.id} check={check} now={now} api={api} onChanged={reload} />
           ))}
         </ul>
       )}
