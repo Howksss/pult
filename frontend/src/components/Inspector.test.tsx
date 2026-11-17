@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { defaultChecksApi, type Graph } from "../api";
+import { defaultChecksApi, defaultScopesApi, type Graph } from "../api";
 import { Inspector } from "./Inspector";
 
 const graph: Graph = {
@@ -70,6 +70,7 @@ function renderInspector(blockId: number) {
       onSelect={onSelect}
       onClose={onClose}
       checksApi={checksApi}
+      scopesApi={{ ...defaultScopesApi, load: () => Promise.resolve([]) }}
     />,
   );
   return { onSelect, onClose };

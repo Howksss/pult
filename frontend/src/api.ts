@@ -165,3 +165,49 @@ export const defaultChecksApi: ChecksApi = {
   remove: deleteCheck,
   run: runCheck,
 };
+
+export type ScopeAccess = "read" | "write";
+
+export interface Scope {
+  id: number;
+  path_glob: string;
+  access: ScopeAccess;
+}
+
+export async function fetchScopes(blockId: number, signal?: AbortSignal): Promise<Scope[]> {
+  const response = await fetch(`/api/v1/blocks/${blockId}/scopes`, { signal });
+  if (!response.ok) {
+    throw new Error(await problemText(response));
+  }
+  return (await response.json()) as Scope[];
+}
+
+export function createScope(
+  blockId: number,
+  pathGlob: string,
+  access: ScopeAccess,
+): Promise<Scope> {
+  return send<Scope>("POST", `/api/v1/blocks/${blockId}/scopes`, { path_glob: pathGlob, access });
+}
+
+export function updateScope(scopeId: number, access: ScopeAccess): Promise<Scope> {
+  return send<Scope>("PATCH", `/api/v1/scopes/${scopeId}`, { access });
+}
+
+export async function deleteScope(scopeId: number): Promise<void> {
+  await send<unknown>("DELETE", `/api/v1/scopes/${scopeId}`);
+}
+
+export interface ScopesApi {
+  load: (blockId: number, signal: AbortSignal) => Promise<Scope[]>;
+  create: (blockId: number, pathGlob: string, access: ScopeAccess) => Promise<Scope>;
+  update: (scopeId: number, access: ScopeAccess) => Promise<Scope>;
+  remove: (scopeId: number) => Promise<void>;
+}
+
+export const defaultScopesApi: ScopesApi = {
+  load: fetchScopes,
+  create: createScope,
+  update: updateScope,
+  remove: deleteScope,
+};

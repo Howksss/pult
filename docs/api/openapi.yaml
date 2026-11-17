@@ -16,6 +16,8 @@ tags:
     description: Граф системы клиента
   - name: checks
     description: Проверки блока и подробности ошибок
+  - name: scopes
+    description: Область доступа агента — пути репозитория
   - name: probe
     description: Приём результатов проверок с сервера клиента
   - name: service
@@ -253,6 +255,91 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
+  /api/v1/blocks/{block_id}/scopes:
+    get:
+      tags: [scopes]
+      operationId: listScopes
+      security: []
+      summary: Область доступа блока
+      parameters:
+        - $ref: "#/components/parameters/BlockId"
+      responses:
+        "200":
+          description: Пути, отсортированные по алфавиту
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Scope"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [scopes]
+      operationId: createScope
+      security: []
+      summary: Добавить путь в область блока
+      description: |
+        Путь — шаблон glob относительно корня репозитория: `*` — в пределах папки, `**` — любые вложенные папки,
+        `?` — один символ. Путь с `/` на конце означает всю папку. Запрещены `/` в начале, `..`, `\` и буквы дисков.
+      parameters:
+        - $ref: "#/components/parameters/BlockId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScopeCreate"
+      responses:
+        "201":
+          description: Путь добавлен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Scope"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/scopes/{scope_id}:
+    patch:
+      tags: [scopes]
+      operationId: updateScope
+      security: []
+      summary: Сменить право на путь
+      parameters:
+        - $ref: "#/components/parameters/ScopeId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScopeUpdate"
+      responses:
+        "200":
+          description: Право изменено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Scope"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      tags: [scopes]
+      operationId: deleteScope
+      security: []
+      summary: Убрать путь из области
+      parameters:
+        - $ref: "#/components/parameters/ScopeId"
+      responses:
+        "204":
+          description: Путь убран
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/projects/{project_id}/links:
     post:
       tags: [graph]
@@ -326,6 +413,13 @@ components:
         minimum: 1
     BlockId:
       name: block_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    ScopeId:
+      name: scope_id
       in: path
       required: true
       schema:
@@ -648,6 +742,38 @@ components:
           maxItems: 40
           items:
             $ref: "#/components/schemas/HistoryPoint"
+    ScopeAccess:
+      type: string
+      enum: [read, write]
+      description: read — агент читает, write — читает и пишет
+    Scope:
+      type: object
+      required: [id, path_glob, access]
+      properties:
+        id:
+          type: integer
+        path_glob:
+          type: string
+        access:
+          $ref: "#/components/schemas/ScopeAccess"
+    ScopeCreate:
+      type: object
+      required: [path_glob]
+      additionalProperties: false
+      properties:
+        path_glob:
+          type: string
+          minLength: 1
+          maxLength: 300
+        access:
+          $ref: "#/components/schemas/ScopeAccess"
+    ScopeUpdate:
+      type: object
+      required: [access]
+      additionalProperties: false
+      properties:
+        access:
+          $ref: "#/components/schemas/ScopeAccess"
     CheckCreate:
       type: object
       required: [method, target]

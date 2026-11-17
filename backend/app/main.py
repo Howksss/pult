@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
-from app.api import checks, graph, health, probe, problems
+from app.api import checks, graph, health, probe, problems, scopes
 from app.core import observability
 from app.core.config import get_settings
 
@@ -21,4 +21,5 @@ observability.install(app)
 app.include_router(health.router)
 app.include_router(graph.router)
 app.include_router(checks.router)
+app.include_router(scopes.router)
 app.include_router(probe.router)

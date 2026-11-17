@@ -4,8 +4,9 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models import BlockKind, CheckMethod, CheckStatus
+from app.models import BlockKind, CheckMethod, CheckStatus, ScopeAccess
 from app.services.check_config import normalize_config, normalize_target
+from app.services.scope import normalize_glob
 from app.services.status import BlockStatus
 
 DETAILS_LIMIT = 8000
@@ -171,3 +172,23 @@ class CheckUpdate(StrictModel):
         if not self.model_fields_set:
             raise ValueError("нужно передать хотя бы одно поле")
         return self
+
+
+class ScopeOut(BaseModel):
+    id: int
+    path_glob: str
+    access: ScopeAccess
+
+
+class ScopeCreate(StrictModel):
+    path_glob: str = Field(min_length=1, max_length=300)
+    access: ScopeAccess = ScopeAccess.read
+
+    @field_validator("path_glob")
+    @classmethod
+    def relative_glob(cls, value: str) -> str:
+        return normalize_glob(value)
+
+
+class ScopeUpdate(StrictModel):
+    access: ScopeAccess

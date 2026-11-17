@@ -15,6 +15,7 @@
 - Настройка проверок: `POST /api/v1/blocks/{id}/checks`, `PATCH`/`DELETE /api/v1/checks/{id}`, `POST /api/v1/checks/{id}/run`; цель и настройки проверяются по типу; в панели блока форма, «Проверить сейчас», выключение, удаление, строка для cron (#92).
 
 - Шаблон сайта nginx `deploy/proxy/nginx-site.conf` и ежедневная копия БД из контейнера `deploy/db/backup-compose.sh` (#51).
+- Область доступа блока: `GET`/`POST /api/v1/blocks/{id}/scopes`, `PATCH`/`DELETE /api/v1/scopes/{id}`, проверка шаблонов и путей (`services/scope.py`), уникальность пути в блоке (миграция `0005`), раздел «Область агента» в панели блока (#94).
 
 ### Changed
 
