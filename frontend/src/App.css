@@ -1216,6 +1216,10 @@ button.system-status:hover .system-status__arrow {
   .spin {
     animation: none;
   }
+
+  .timeline__bar {
+    transition: none;
+  }
 }
 
 .auth {
@@ -1353,7 +1357,7 @@ button.system-status:hover .system-status__arrow {
 
 .timeline {
   display: grid;
-  gap: 6px;
+  gap: 12px;
 }
 
 .timeline__since {
@@ -1362,19 +1366,58 @@ button.system-status:hover .system-status__arrow {
   font-size: 14px;
 }
 
-.timeline__bars,
-.timeline__labels {
+.timeline__rows {
   display: grid;
-  grid-template-columns: repeat(24, minmax(0, 1fr));
-  gap: 2px;
+  gap: 10px;
+}
+
+.timeline__row {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.timeline__hour {
+  display: grid;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  cursor: default;
+}
+
+.timeline__hour:focus-visible {
+  outline: none;
+}
+
+.timeline__hour:focus-visible .timeline__bar {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.timeline__hour--current {
+  color: var(--text-muted);
+}
+
+.timeline__hour--active {
+  color: var(--text);
 }
 
 .timeline__bar {
   --fail-share: 0%;
   --warn-share: 0%;
-  height: 22px;
-  border-radius: 3px;
+  height: 28px;
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.07);
+  transform-origin: 50% 100%;
+  transition:
+    transform 0.12s ease,
+    opacity 0.12s ease;
 }
 
 .timeline__bar--ok,
@@ -1388,13 +1431,52 @@ button.system-status:hover .system-status__arrow {
   );
 }
 
-.timeline__labels {
-  color: var(--text-faint);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+.timeline__rows--focus .timeline__bar {
+  opacity: 0.4;
 }
 
-.timeline__labels span:last-child {
-  justify-self: end;
+.timeline__rows--focus .timeline__hour--active .timeline__bar {
+  opacity: 1;
+  transform: scale(1.15, 1.3);
+}
+
+.timeline__readout {
+  display: grid;
+  gap: 4px;
+  min-height: 44px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.timeline__range {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline__legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.timeline__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.timeline__swatch:not(:first-child) {
+  margin-left: 8px;
+}
+
+.timeline__swatch--fail {
+  background: var(--fail);
+}
+
+.timeline__swatch--warn {
+  background: var(--warn);
+}
+
+.timeline__swatch--ok {
+  background: var(--ok);
 }

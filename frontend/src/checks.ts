@@ -89,20 +89,29 @@ export function bucketShares(bucket: Omit<TimelineBucket, "start">): {
   return { fail, warn: Math.min(share(bucket.warn), 100 - fail) };
 }
 
-export function bucketTitle(bucket: TimelineBucket): string {
-  const hour = clock(bucket.start);
+const FAIL_FORMS: [string, string, string] = ["сбой", "сбоя", "сбоев"];
+const WARN_FORMS: [string, string, string] = ["предупреждение", "предупреждения", "предупреждений"];
+const OF_CHECKS_FORMS: [string, string, string] = ["проверки", "проверок", "проверок"];
+const HOUR_MS = 3_600_000;
+
+export function bucketDetails(bucket: Omit<TimelineBucket, "start">): string {
   const total = bucket.ok + bucket.warn + bucket.fail;
   if (total === 0) {
-    return `${hour}: результатов нет`;
+    return "проверок не было";
   }
-  const parts = [`${hour}: ${total} ${plural(total, ["результат", "результата", "результатов"])}`];
-  if (bucket.fail) {
-    parts.push(`сбоев ${bucket.fail}`);
+  const problems = [
+    bucket.fail ? `${bucket.fail} ${plural(bucket.fail, FAIL_FORMS)}` : "",
+    bucket.warn ? `${bucket.warn} ${plural(bucket.warn, WARN_FORMS)}` : "",
+  ].filter(Boolean);
+  if (problems.length === 0) {
+    return `без сбоев, ${total} ${plural(total, CHECK_FORMS)}`;
   }
-  if (bucket.warn) {
-    parts.push(`предупреждений ${bucket.warn}`);
-  }
-  return parts.join(", ");
+  return `${problems.join(" и ")} из ${total} ${plural(total, OF_CHECKS_FORMS)}`;
+}
+
+export function bucketRange(start: string, current: boolean): string {
+  const end = new Date(new Date(start).getTime() + HOUR_MS).toISOString();
+  return `${clock(start)}–${current ? "сейчас" : clock(end)}`;
 }
 
 export function clock(iso: string): string {

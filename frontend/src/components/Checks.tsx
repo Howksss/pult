@@ -1,15 +1,24 @@
-import { type CSSProperties, useCallback, useEffect, useState } from "react";
+import {
+  type CSSProperties,
+  type FocusEvent,
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import {
   defaultChecksApi,
   type BlockChecks,
   type Check,
   type CheckPatch,
   type ChecksApi,
+  type TimelineBucket,
 } from "../api";
 import {
+  bucketDetails,
+  bucketRange,
   bucketShares,
   bucketStatus,
-  bucketTitle,
   clock,
   cronLine,
   excerpt,
@@ -23,21 +32,67 @@ import {
 import { CheckForm } from "./CheckForm";
 import { StatusDot } from "./StatusBadge";
 
-const LABEL_EVERY = 6;
+const ROW = 12;
+const STEPS: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1 };
 
-function hourLabel(index: number, total: number, start: string): string {
-  if (index === total - 1) {
-    return "сейчас";
+function moveFocus(event: KeyboardEvent<HTMLDivElement>) {
+  const step = STEPS[event.key];
+  if (!step) {
+    return;
   }
-  return index % LABEL_EVERY === 0 ? clock(start) : "";
+  const items = [...event.currentTarget.querySelectorAll<HTMLButtonElement>(".timeline__hour")];
+  const index = items.indexOf(document.activeElement as HTMLButtonElement);
+  items[Math.min(items.length - 1, Math.max(0, index + step))]?.focus();
+  event.preventDefault();
+}
+
+interface HourProps {
+  bucket: TimelineBucket;
+  current: boolean;
+  active: boolean;
+  tabbable: boolean;
+  onActivate: () => void;
+}
+
+function Hour({ bucket, current, active, tabbable, onActivate }: HourProps) {
+  const shares = bucketShares(bucket);
+  const style = {
+    "--fail-share": `${shares.fail}%`,
+    "--warn-share": `${shares.warn}%`,
+  } as CSSProperties;
+  const classes = ["timeline__hour"];
+  if (active) classes.push("timeline__hour--active");
+  if (current) classes.push("timeline__hour--current");
+  return (
+    <button
+      type="button"
+      className={classes.join(" ")}
+      tabIndex={tabbable ? 0 : -1}
+      aria-label={`${bucketRange(bucket.start, current)}: ${bucketDetails(bucket)}`}
+      onMouseEnter={onActivate}
+      onFocus={onActivate}
+      onClick={onActivate}
+    >
+      <span className={`timeline__bar timeline__bar--${bucketStatus(bucket)}`} style={style} />
+      <span className="timeline__hour-label">{clock(bucket.start).slice(0, 2)}</span>
+    </button>
+  );
 }
 
 function Timeline({ check, now }: { check: Check; now: Date }) {
+  const [active, setActive] = useState<number | null>(null);
   const buckets = check.timeline;
   if (buckets.length === 0) {
     return null;
   }
+  const last = buckets.length - 1;
   const problems = buckets.filter((bucket) => bucket.fail + bucket.warn > 0).length;
+  const shown = active === null ? null : buckets[active];
+  const leave = (event: FocusEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      setActive(null);
+    }
+  };
   return (
     <div className="timeline">
       {check.failing_since && (
@@ -47,30 +102,50 @@ function Timeline({ check, now }: { check: Check; now: Date }) {
         </p>
       )}
       <div
-        className="timeline__bars"
-        role="img"
+        className={`timeline__rows${active === null ? "" : " timeline__rows--focus"}`}
+        role="group"
         aria-label={`Последние сутки по часам: проблемы в ${problems} из ${buckets.length} часов`}
+        onMouseLeave={() => setActive(null)}
+        onBlur={leave}
+        onKeyDown={moveFocus}
       >
-        {buckets.map((bucket) => {
-          const shares = bucketShares(bucket);
-          const style = {
-            "--fail-share": `${shares.fail}%`,
-            "--warn-share": `${shares.warn}%`,
-          } as CSSProperties;
-          return (
-            <span
-              key={bucket.start}
-              className={`timeline__bar timeline__bar--${bucketStatus(bucket)}`}
-              style={style}
-              title={bucketTitle(bucket)}
-            />
-          );
-        })}
-      </div>
-      <div className="timeline__labels" aria-hidden="true">
-        {buckets.map((bucket, index) => (
-          <span key={bucket.start}>{hourLabel(index, buckets.length, bucket.start)}</span>
+        {[0, ROW].map((offset) => (
+          <div key={offset} className="timeline__row">
+            {buckets.slice(offset, offset + ROW).map((bucket, position) => {
+              const index = offset + position;
+              return (
+                <Hour
+                  key={bucket.start}
+                  bucket={bucket}
+                  current={index === last}
+                  active={index === active}
+                  tabbable={index === (active ?? last)}
+                  onActivate={() => setActive(index)}
+                />
+              );
+            })}
+          </div>
         ))}
+      </div>
+      <div className="timeline__readout" aria-live="polite">
+        {shown ? (
+          <>
+            <span className="timeline__range">{bucketRange(shown.start, active === last)}</span>
+            <span>{bucketDetails(shown)}</span>
+          </>
+        ) : (
+          <>
+            <span className="timeline__legend">
+              <span className="timeline__swatch timeline__swatch--fail" />
+              сбой
+              <span className="timeline__swatch timeline__swatch--warn" />
+              предупреждение
+              <span className="timeline__swatch timeline__swatch--ok" />
+              норма
+            </span>
+            <span>Деление — час, высота цвета — доля проверок</span>
+          </>
+        )}
       </div>
     </div>
   );
