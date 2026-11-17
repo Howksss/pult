@@ -28,6 +28,7 @@ import {
   formatSpan,
   METHOD_LABELS,
   PULL_METHODS,
+  sinceLabel,
 } from "../checks";
 import { CheckForm } from "./CheckForm";
 import { StatusDot } from "./StatusBadge";
@@ -97,7 +98,8 @@ function Timeline({ check, now }: { check: Check; now: Date }) {
     <div className="timeline">
       {check.failing_since && (
         <p className="timeline__since">
-          {check.status === "warn" ? "Предупреждение" : "Сбой"} с {clock(check.failing_since)},{" "}
+          {check.status === "warn" ? "Предупреждение" : "Сбой"} с{" "}
+          {sinceLabel(check.failing_since, now)},{" "}
           {formatSpan((now.getTime() - new Date(check.failing_since).getTime()) / 1000)}
         </p>
       )}
