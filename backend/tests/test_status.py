@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from app.models.health import CheckStatus
+from app.models.health import CheckMethod, CheckStatus
 from app.services.status import BlockStatus, CheckSnapshot, block_status, check_status
 
 NOW = datetime(2026, 10, 21, 8, 0, tzinfo=UTC)
@@ -67,3 +67,20 @@ def test_block_without_checks_is_unknown():
 )
 def test_block_takes_worst_check_status(snapshots, expected):
     assert block_status(snapshots, NOW) is expected
+
+
+def push_snapshot(status: CheckStatus, seconds_ago: int, method: CheckMethod) -> CheckSnapshot:
+    return CheckSnapshot(
+        status=status, checked_at=NOW - timedelta(seconds=seconds_ago), interval_sec=60, method=method
+    )
+
+
+@pytest.mark.parametrize("method", [CheckMethod.heartbeat, CheckMethod.exit_code, CheckMethod.log_pattern])
+def test_silent_push_check_is_missed_run(method):
+    assert check_status(push_snapshot(CheckStatus.ok, 91, method), NOW) is BlockStatus.fail
+    assert check_status(push_snapshot(CheckStatus.ok, 90, method), NOW) is BlockStatus.ok
+
+
+def test_pull_check_is_never_missed_only_stale():
+    assert check_status(push_snapshot(CheckStatus.ok, 120, CheckMethod.http), NOW) is BlockStatus.ok
+    assert check_status(push_snapshot(CheckStatus.ok, 181, CheckMethod.tls), NOW) is BlockStatus.unknown

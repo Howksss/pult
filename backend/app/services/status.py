@@ -3,9 +3,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
 
-from app.models.health import CheckStatus
+from app.models.health import CheckMethod, CheckStatus
 
 STALE_AFTER_INTERVALS = 3
+MISSED_AFTER_INTERVALS = 1.5
+PUSH_METHODS = frozenset({CheckMethod.heartbeat, CheckMethod.exit_code, CheckMethod.log_pattern})
 
 
 class BlockStatus(StrEnum):
@@ -28,6 +30,13 @@ class CheckSnapshot:
     status: CheckStatus
     checked_at: datetime
     interval_sec: int
+    method: CheckMethod = CheckMethod.http
+
+
+def is_missed(snapshot: CheckSnapshot, now: datetime) -> bool:
+    if snapshot.method not in PUSH_METHODS:
+        return False
+    return now - snapshot.checked_at > timedelta(seconds=snapshot.interval_sec * MISSED_AFTER_INTERVALS)
 
 
 def check_status(snapshot: CheckSnapshot | None, now: datetime) -> BlockStatus:
@@ -35,6 +44,8 @@ def check_status(snapshot: CheckSnapshot | None, now: datetime) -> BlockStatus:
         raise ValueError("now must be timezone-aware")
     if snapshot is None:
         return BlockStatus.unknown
+    if is_missed(snapshot, now):
+        return BlockStatus.fail
     stale_after = timedelta(seconds=snapshot.interval_sec * STALE_AFTER_INTERVALS)
     if now - snapshot.checked_at > stale_after:
         return BlockStatus.unknown

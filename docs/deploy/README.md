@@ -14,9 +14,12 @@
 ```
 db (PostgreSQL 16, healthcheck pg_isready)
   └─ migrate (alembic upgrade head, разовый)
-       └─ api (FastAPI, healthcheck)
-            └─ frontend (nginx, порт 8080)
+       ├─ api (FastAPI, healthcheck)
+       │    └─ frontend (nginx, порт 8080)
+       └─ worker (python -m app.worker, профиль checks)
 ```
+
+`worker` выполняет внешние проверки `http`, `tls`, `tcp` и записывает результаты с подробностями. Он включается профилем: `docker compose --profile checks up -d`. Пока в проекте только демо-данные с вымышленными адресами, worker не нужен: он получил бы по ним ошибки DNS.
 
 Порядок запуска задают условия `depends_on`: миграции стартуют, когда БД готова, API — когда миграции завершились успешно, frontend — когда API прошёл проверку работоспособности.
 

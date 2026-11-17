@@ -10,8 +10,10 @@ from app.api.problems import ProblemError, not_found
 from app.api.schemas import BlockCreate, BlockOut, BlockUpdate, GraphOut, LinkCreate, LinkOut
 from app.db import get_session
 from app.models import Block, BlockLink, Project
-from app.services.graph_status import block_statuses
+from app.services.graph_status import BlockDiagnosis, block_diagnoses
 from app.services.status import BlockStatus
+
+NO_CHECKS = BlockDiagnosis(BlockStatus.unknown, "Проверки не настроены", 0, 0)
 
 router = APIRouter(prefix="/api/v1", tags=["graph"])
 
@@ -32,7 +34,7 @@ def load_block(session: Session, block_id: int) -> Block:
     return block
 
 
-def block_out(block: Block, status: BlockStatus) -> BlockOut:
+def block_out(block: Block, diagnosis: BlockDiagnosis) -> BlockOut:
     return BlockOut(
         id=block.id,
         kind=block.kind,
@@ -40,7 +42,10 @@ def block_out(block: Block, status: BlockStatus) -> BlockOut:
         description=block.description,
         x=block.pos_x,
         y=block.pos_y,
-        status=status,
+        status=diagnosis.status,
+        reason=diagnosis.reason,
+        checks_total=diagnosis.checks_total,
+        checks_problem=diagnosis.checks_problem,
     )
 
 
@@ -66,7 +71,7 @@ def get_graph(project_id: int, session: SessionDep) -> GraphOut:
     project = load_project(session, project_id)
     now = datetime.now(UTC)
     blocks = session.scalars(select(Block).where(Block.project_id == project_id).order_by(Block.id)).all()
-    statuses = block_statuses(session, [block.id for block in blocks], now)
+    diagnoses = block_diagnoses(session, [block.id for block in blocks], now)
     links = session.scalars(
         select(BlockLink)
         .join(Block, BlockLink.source_block_id == Block.id)
@@ -77,7 +82,7 @@ def get_graph(project_id: int, session: SessionDep) -> GraphOut:
         project_id=project_id,
         project_name=project.name,
         generated_at=now,
-        blocks=[block_out(block, statuses[block.id]) for block in blocks],
+        blocks=[block_out(block, diagnoses[block.id]) for block in blocks],
         links=[link_out(link) for link in links],
     )
 
@@ -95,7 +100,7 @@ def create_block(project_id: int, payload: BlockCreate, session: SessionDep) -> 
     )
     session.add(block)
     commit_or_conflict(session, f"block named {payload.name!r} already exists in project {project_id}")
-    return block_out(block, BlockStatus.unknown)
+    return block_out(block, NO_CHECKS)
 
 
 @router.patch("/blocks/{block_id}", response_model=BlockOut)
@@ -108,8 +113,7 @@ def update_block(block_id: int, payload: BlockUpdate, session: SessionDep) -> Bl
     for field, value in changes.items():
         setattr(block, columns[field], value)
     commit_or_conflict(session, f"block named {block.name!r} already exists in project {block.project_id}")
-    status = block_statuses(session, [block.id], datetime.now(UTC))[block.id]
-    return block_out(block, status)
+    return block_out(block, block_diagnoses(session, [block.id], datetime.now(UTC))[block.id])
 
 
 @router.delete("/blocks/{block_id}", status_code=204)

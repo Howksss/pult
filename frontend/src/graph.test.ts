@@ -24,6 +24,9 @@ const graph: Graph = {
       x: 0,
       y: 10,
       status: "ok",
+      reason: null,
+      checks_total: 1,
+      checks_problem: 0,
     },
     {
       id: 2,
@@ -33,6 +36,9 @@ const graph: Graph = {
       x: 260,
       y: 0,
       status: "fail",
+      reason: null,
+      checks_total: 1,
+      checks_problem: 0,
     },
     {
       id: 3,
@@ -42,6 +48,9 @@ const graph: Graph = {
       x: 260,
       y: 120,
       status: "unknown",
+      reason: null,
+      checks_total: 1,
+      checks_problem: 0,
     },
     {
       id: 4,
@@ -51,6 +60,9 @@ const graph: Graph = {
       x: 520,
       y: 120,
       status: "ok",
+      reason: null,
+      checks_total: 1,
+      checks_problem: 0,
     },
   ],
   links: [

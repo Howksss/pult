@@ -65,19 +65,22 @@ FROM (
 ) AS s (block_name, path_glob, access)
 JOIN block AS b ON b.name = s.block_name;
 
-INSERT INTO health_check (block_id, method, target, interval_sec, timeout_sec)
-SELECT b.id, c.method::check_method, c.target, 60, 10
+INSERT INTO health_check (block_id, method, target, interval_sec, timeout_sec, name, config)
+SELECT b.id, c.method::check_method, c.target, 60, 10, c.name, c.config::jsonb
 FROM (
     VALUES
-        ('VPS', 'heartbeat', 'probe'),
-        ('Расчёт плана', 'exit_code', 'main.py'),
-        ('Автозаказ', 'exit_code', 'main_orders.py'),
-        ('POS-система', 'http', 'https://pos.example/api/ping'),
-        ('Погода API', 'http', 'https://weather.example/forecast'),
-        ('Конфигурация', 'log_pattern', 'ConfigError'),
-        ('Excel-шаблоны', 'log_pattern', 'TemplateError'),
-        ('Telegram-бот', 'http', 'https://api.telegram.org/getMe')
-) AS c (block_name, method, target)
+        ('VPS', 'heartbeat', 'cron */1', 'Сервер на связи', '{}'),
+        ('VPS', 'tcp', 'vps.example:22', 'SSH отвечает', '{}'),
+        ('Расчёт плана', 'exit_code', 'python main.py', 'Расчёт отработал', '{}'),
+        ('Автозаказ', 'exit_code', 'python main_orders.py', 'Автозаказ отработал', '{}'),
+        ('POS-система', 'http', 'https://pos.example/api/ping', 'POS отвечает', '{"warn_latency_ms": 1500}'),
+        ('POS-система', 'http', 'https://pos.example/api/stock', 'Остатки отдаются', '{"contains": "items"}'),
+        ('POS-система', 'tls', 'pos.example', 'Сертификат POS', '{"warn_days": 14}'),
+        ('Погода API', 'http', 'https://weather.example/forecast', 'Прогноз отдаётся', '{"contains": "temp"}'),
+        ('Конфигурация', 'log_pattern', 'ConfigError', 'Конфигурация читается', '{}'),
+        ('Excel-шаблоны', 'log_pattern', 'TemplateError', 'Шаблоны открываются', '{}'),
+        ('Telegram-бот', 'http', 'https://api.telegram.org/getMe', 'Бот отвечает', '{}')
+) AS c (block_name, method, target, name, config)
 JOIN block AS b ON b.name = c.block_name;
 
 INSERT INTO check_result (health_check_id, checked_at, status, latency_ms, message)
@@ -102,11 +105,11 @@ CROSS JOIN LATERAL (SELECT random() AS r, ts AS sample_time, hc.id AS check_id) 
 WHERE NOT (b.name = 'Погода API' AND ts > now() - interval '20 minutes')
 ORDER BY ts, hc.id;
 
-INSERT INTO check_result (health_check_id, checked_at, status, latency_ms, message)
-SELECT hc.id, date_trunc('minute', now()), 'fail', 10000, 'timeout after 10 s'
+INSERT INTO check_result (health_check_id, checked_at, status, latency_ms, message, error_kind, details)
+SELECT hc.id, date_trunc('minute', now()), 'fail', 10000, 'Не ответил за 10 с', 'timeout',
+    jsonb_build_object('url', hc.target, 'method', 'GET', 'error', 'ReadTimeout: timed out')
 FROM health_check AS hc
-JOIN block AS b ON b.id = hc.block_id
-WHERE b.name = 'POS-система';
+WHERE hc.name = 'POS отвечает';
 
 INSERT INTO agent_task (block_id, author_id, title, status, finished_at)
 SELECT b.id, u.id, 'POS-система не отвечает, план не рассчитан', 'awaiting_review', NULL

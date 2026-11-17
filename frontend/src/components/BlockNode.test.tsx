@@ -13,6 +13,9 @@ const block: Block = {
   x: 0,
   y: 0,
   status: "fail",
+  reason: null,
+  checks_total: 1,
+  checks_problem: 0,
 };
 
 function renderNode(overrides: Partial<Block>, selected = false) {
@@ -41,8 +44,29 @@ describe("BlockNode", () => {
   });
 
   it("выделяет выбранный блок", () => {
-    const { container } = renderNode({ status: "ok" }, true);
+    const { container } = renderNode(
+      { status: "ok", reason: null, checks_total: 1, checks_problem: 0 },
+      true,
+    );
     expect(container.firstChild).toHaveClass("block-node--ok", "block-node--selected");
+  });
+
+  it("при проблеме вместо описания показывает причину и долю проблемных проверок", () => {
+    const { container } = renderNode({
+      reason: "POS отвечает: HTTP 502 Bad Gateway",
+      checks_total: 3,
+      checks_problem: 1,
+    });
+    expect(screen.getByText("POS отвечает: HTTP 502 Bad Gateway")).toBeInTheDocument();
+    expect(screen.queryByText("Продажи и остатки")).toBeNull();
+    expect(screen.getByTitle("Проблемы в 1 из 3 проверок")).toHaveTextContent("1 из 3");
+    expect(container.querySelector(".block-node__description")).toBeNull();
+  });
+
+  it("у исправного блока описание и число проверок", () => {
+    renderNode({ status: "ok", reason: null, checks_total: 2, checks_problem: 0 });
+    expect(screen.getByText("Продажи и остатки")).toBeInTheDocument();
+    expect(screen.getByTitle("Все 2 проверки проходят")).toHaveTextContent("2 проверки");
   });
 
   it("не выводит пустое описание", () => {
