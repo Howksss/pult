@@ -1,3 +1,4 @@
+import ipaddress
 import socket
 import ssl
 import time
@@ -5,13 +6,13 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import urlsplit
 
 import httpx
 
 from app.models import CheckMethod, CheckStatus, HealthCheck
 
 BODY_EXCERPT = 500
+MAX_REDIRECTS = 5
 clock = time.perf_counter
 DEFAULT_TLS_WARN_DAYS = 14
 DEFAULT_TLS_FAIL_DAYS = 3
@@ -30,6 +31,54 @@ class Outcome:
     message: str | None = None
     error_kind: str | None = None
     details: dict[str, Any] = field(default_factory=dict)
+
+
+class BlockedAddressError(Exception):
+    def __init__(self, host: str, address: str) -> None:
+        super().__init__(f"{host} resolves to non-public address {address}")
+        self.host = host
+        self.address = address
+
+
+Resolver = Callable[[str, int], list[str]]
+
+
+def resolve_addresses(host: str, port: int) -> list[str]:
+    addresses: list[str] = []
+    for *_, sockaddr in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM):
+        address = str(sockaddr[0])
+        if address not in addresses:
+            addresses.append(address)
+    return addresses
+
+
+def is_public(address: str) -> bool:
+    ip = ipaddress.ip_address(address.split("%", 1)[0])
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    return ip.is_global and not ip.is_multicast
+
+
+@dataclass(frozen=True)
+class Guard:
+    allow_private: bool = False
+    resolve: Resolver | None = None
+
+    def address(self, host: str, port: int) -> str:
+        addresses = (self.resolve or resolve_addresses)(host, port)
+        if not addresses:
+            raise socket.gaierror(f"getaddrinfo returned nothing for {host}")
+        if not self.allow_private:
+            for address in addresses:
+                if not is_public(address):
+                    raise BlockedAddressError(host, address)
+        return addresses[0]
+
+
+def blocked(error: BlockedAddressError, details: dict[str, Any]) -> Outcome:
+    details["address"] = error.address
+    message = f"Адрес {error.address} во внутренней сети, такие проверки запрещены"
+    return Outcome(CheckStatus.fail, None, message, "blocked", details)
 
 
 def seconds(ms: float) -> str:
@@ -63,18 +112,49 @@ def expected_status(config: dict[str, Any], code: int) -> bool:
     return 200 <= code < 400
 
 
-def run_http(check: HealthCheck, client: httpx.Client) -> Outcome:
+def default_port(url: httpx.URL) -> int:
+    return url.port or (443 if url.scheme == "https" else 80)
+
+
+def fetch_pinned(
+    client: httpx.Client, method: str, url: httpx.URL, guard: Guard, timeout: int
+) -> tuple[httpx.Response, httpx.URL]:
+    for _ in range(MAX_REDIRECTS + 1):
+        address = guard.address(url.host, default_port(url))
+        response = client.request(
+            method,
+            url.copy_with(host=address),
+            headers={"Host": url.netloc.decode("ascii")},
+            extensions={"sni_hostname": url.host},
+            timeout=timeout,
+            follow_redirects=False,
+        )
+        location = response.headers.get("location")
+        if not response.is_redirect or not location:
+            return response, url
+        url = url.join(location)
+        if url.scheme not in ("http", "https"):
+            return response, url
+    raise httpx.TooManyRedirects(f"more than {MAX_REDIRECTS} redirects")
+
+
+def run_http(check: HealthCheck, client: httpx.Client, guard: Guard | None = None) -> Outcome:
     config = check.config or {}
     method = config.get("method", "GET")
     details: dict[str, Any] = {"url": check.target, "method": method}
+    url = httpx.URL(check.target)
     started = clock()
     try:
-        response = client.request(method, check.target, timeout=check.timeout_sec)
-    except httpx.HTTPError as error:
+        response, final_url = fetch_pinned(client, method, url, guard or Guard(), check.timeout_sec)
+    except BlockedAddressError as error:
+        return blocked(error, details)
+    except httpx.TooManyRedirects:
         latency = round((clock() - started) * 1000)
-        kind, message = network_failure(
-            error, urlsplit(check.target).hostname or check.target, check.timeout_sec
-        )
+        message = f"Больше {MAX_REDIRECTS} перенаправлений подряд"
+        return Outcome(CheckStatus.fail, latency, message, "http_status", details)
+    except (httpx.HTTPError, OSError) as error:
+        latency = round((clock() - started) * 1000)
+        kind, message = network_failure(error, url.host or check.target, check.timeout_sec)
         details["error"] = str(error)[:300]
         return Outcome(CheckStatus.fail, latency, message, kind, details)
     latency = round((clock() - started) * 1000)
@@ -84,8 +164,8 @@ def run_http(check: HealthCheck, client: httpx.Client) -> Outcome:
         latency_ms=latency,
         content_type=response.headers.get("content-type"),
     )
-    if str(response.url) != check.target:
-        details["final_url"] = str(response.url)
+    if final_url != url:
+        details["final_url"] = str(final_url)
     if not expected_status(config, response.status_code):
         details["body_excerpt"] = response.text[:BODY_EXCERPT]
         message = f"HTTP {response.status_code} {response.reason_phrase}".strip()
@@ -101,13 +181,13 @@ def run_http(check: HealthCheck, client: httpx.Client) -> Outcome:
     return Outcome(CheckStatus.ok, latency, None, None, details)
 
 
-CertFetcher = Callable[[str, int, int], dict[str, Any]]
+CertFetcher = Callable[[str, str, int, int], dict[str, Any]]
 
 
-def fetch_certificate(host: str, port: int, timeout: int) -> dict[str, Any]:
+def fetch_certificate(host: str, address: str, port: int, timeout: int) -> dict[str, Any]:
     context = ssl.create_default_context()
     with (
-        socket.create_connection((host, port), timeout=timeout) as raw,
+        socket.create_connection((address, port), timeout=timeout) as raw,
         context.wrap_socket(raw, server_hostname=host) as wrapped,
     ):
         return wrapped.getpeercert() or {}
@@ -122,14 +202,19 @@ def cert_name(parts: Any) -> str | None:
 
 
 def run_tls(
-    check: HealthCheck, fetch: CertFetcher = fetch_certificate, now: datetime | None = None
+    check: HealthCheck,
+    fetch: CertFetcher = fetch_certificate,
+    now: datetime | None = None,
+    guard: Guard | None = None,
 ) -> Outcome:
     config = check.config or {}
     host, port = split_host(check.target, 443)
     details: dict[str, Any] = {"host": host, "port": port}
     started = clock()
     try:
-        cert = fetch(host, port, check.timeout_sec)
+        cert = fetch(host, (guard or Guard()).address(host, port), port, check.timeout_sec)
+    except BlockedAddressError as error:
+        return blocked(error, details)
     except (OSError, ssl.SSLError) as error:
         latency = round((clock() - started) * 1000)
         kind, message = network_failure(error, host, check.timeout_sec)
@@ -164,12 +249,14 @@ def connect(address: tuple[str, int], timeout: int) -> socket.socket:
     return socket.create_connection(address, timeout=timeout)
 
 
-def run_tcp(check: HealthCheck, open_connection: Connector = connect) -> Outcome:
+def run_tcp(check: HealthCheck, open_connection: Connector = connect, guard: Guard | None = None) -> Outcome:
     host, port = split_host(check.target, 0)
     details: dict[str, Any] = {"host": host, "port": port}
     started = clock()
     try:
-        open_connection((host, port), check.timeout_sec).close()
+        open_connection(((guard or Guard()).address(host, port), port), check.timeout_sec).close()
+    except BlockedAddressError as error:
+        return blocked(error, details)
     except OSError as error:
         latency = round((clock() - started) * 1000)
         kind, message = network_failure(error, host, check.timeout_sec)
@@ -187,11 +274,11 @@ def run_tcp(check: HealthCheck, open_connection: Connector = connect) -> Outcome
 PULL_METHODS = frozenset({CheckMethod.http, CheckMethod.tls, CheckMethod.tcp})
 
 
-def run_check(check: HealthCheck, client: httpx.Client) -> Outcome:
+def run_check(check: HealthCheck, client: httpx.Client, guard: Guard | None = None) -> Outcome:
     if check.method is CheckMethod.http:
-        return run_http(check, client)
+        return run_http(check, client, guard)
     if check.method is CheckMethod.tls:
-        return run_tls(check)
+        return run_tls(check, guard=guard)
     if check.method is CheckMethod.tcp:
-        return run_tcp(check)
+        return run_tcp(check, guard=guard)
     raise ValueError(f"{check.method} is reported by the client, Pult does not run it")

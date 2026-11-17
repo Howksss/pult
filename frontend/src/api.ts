@@ -78,6 +78,59 @@ export async function fetchChecks(blockId: number, signal?: AbortSignal): Promis
   return (await response.json()) as BlockChecks;
 }
 
+export interface CheckInput {
+  name?: string | null;
+  method: CheckMethod;
+  target: string;
+  interval_sec?: number;
+  timeout_sec?: number;
+  enabled?: boolean;
+  config?: Record<string, unknown>;
+}
+
+export type CheckPatch = Partial<Omit<CheckInput, "method">>;
+
+async function problemText(response: Response): Promise<string> {
+  try {
+    const problem = (await response.json()) as {
+      detail?: string;
+      errors?: { message?: string }[];
+    };
+    const text = problem.errors?.[0]?.message ?? problem.detail ?? `API ${response.status}`;
+    return text.replace(/^Value error, /, "");
+  } catch {
+    return `API ${response.status}`;
+  }
+}
+
+async function send<T>(method: string, url: string, body?: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method,
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(await problemText(response));
+  }
+  return (response.status === 204 ? undefined : await response.json()) as T;
+}
+
+export function createCheck(blockId: number, input: CheckInput): Promise<Check> {
+  return send<Check>("POST", `/api/v1/blocks/${blockId}/checks`, input);
+}
+
+export function updateCheck(checkId: number, patch: CheckPatch): Promise<Check> {
+  return send<Check>("PATCH", `/api/v1/checks/${checkId}`, patch);
+}
+
+export async function deleteCheck(checkId: number): Promise<void> {
+  await send<unknown>("DELETE", `/api/v1/checks/${checkId}`);
+}
+
+export function runCheck(checkId: number): Promise<Check> {
+  return send<Check>("POST", `/api/v1/checks/${checkId}/run`);
+}
+
 export async function fetchGraph(projectId: number, signal?: AbortSignal): Promise<Graph> {
   const response = await fetch(`/api/v1/projects/${projectId}/graph`, { signal });
   if (!response.ok) {
@@ -96,3 +149,19 @@ export async function moveBlock(blockId: number, x: number, y: number): Promise<
     throw new Error(`API ${response.status}`);
   }
 }
+
+export interface ChecksApi {
+  load: (blockId: number, signal: AbortSignal) => Promise<BlockChecks>;
+  create: (blockId: number, input: CheckInput) => Promise<Check>;
+  update: (checkId: number, patch: CheckPatch) => Promise<Check>;
+  remove: (checkId: number) => Promise<void>;
+  run: (checkId: number) => Promise<Check>;
+}
+
+export const defaultChecksApi: ChecksApi = {
+  load: fetchChecks,
+  create: createCheck,
+  update: updateCheck,
+  remove: deleteCheck,
+  run: runCheck,
+};

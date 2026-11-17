@@ -16,6 +16,7 @@ export default defineConfig({
       include: [
         "src/checks.ts",
         "src/components/BlockNode.tsx",
+        "src/components/CheckForm.tsx",
         "src/components/Checks.tsx",
         "src/components/Inspector.tsx",
         "src/components/StatusBadge.tsx",

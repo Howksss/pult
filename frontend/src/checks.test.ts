@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { checksCount, excerpt, facts, formatAgo, formatDuration, plural } from "./checks";
+import {
+  buildConfig,
+  checksCount,
+  cronLine,
+  excerpt,
+  facts,
+  formatAgo,
+  formatDuration,
+  plural,
+} from "./checks";
 
 const NOW = new Date("2026-11-17T08:00:00Z");
 
@@ -117,5 +126,30 @@ describe("excerpt", () => {
   it("пустые выдержки не показывает", () => {
     expect(excerpt({ lines: [], stderr_tail: "  " })).toBeNull();
     expect(excerpt(null)).toBeNull();
+  });
+});
+
+describe("buildConfig и cronLine", () => {
+  const empty = {
+    contains: "",
+    warn_latency_ms: "",
+    expect_status: "",
+    warn_days: "",
+    fail_days: "",
+  };
+
+  it("пустые поля HTTP не попадают в настройки", () => {
+    expect(buildConfig("http", empty)).toEqual({});
+    expect(buildConfig("tcp", empty)).toEqual({});
+  });
+
+  it("строка для cron по типу проверки", () => {
+    expect(cronLine({ id: 3, method: "exit_code", target: "python main.py" })).toBe(
+      "pult-run 3 python main.py",
+    );
+    expect(cronLine({ id: 9, method: "log_pattern", target: "ConfigError" })).toBe(
+      `pult-run 9 sh -c '! grep -q "ConfigError" /var/log/app.log'`,
+    );
+    expect(cronLine({ id: 1, method: "heartbeat", target: "cron" })).toBe("pult-run 1 true");
   });
 });

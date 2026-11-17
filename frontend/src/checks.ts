@@ -9,6 +9,18 @@ export const METHOD_LABELS: Record<CheckMethod, string> = {
   log_pattern: "Лог",
 };
 
+export const PULL_METHODS: ReadonlySet<CheckMethod> = new Set<CheckMethod>(["http", "tls", "tcp"]);
+
+export function cronLine(check: { id: number; method: CheckMethod; target: string }): string {
+  if (check.method === "exit_code") {
+    return `pult-run ${check.id} ${check.target}`;
+  }
+  if (check.method === "log_pattern") {
+    return `pult-run ${check.id} sh -c '! grep -q "${check.target}" /var/log/app.log'`;
+  }
+  return `pult-run ${check.id} true`;
+}
+
 export function plural(count: number, forms: [string, string, string]): string {
   const tens = count % 100;
   const ones = count % 10;
@@ -131,4 +143,39 @@ export function excerpt(details: Record<string, unknown> | null): Excerpt | null
     }
   }
   return null;
+}
+
+function numberOrNull(value: string): number | null {
+  const parsed = Number(value);
+  return value.trim() && Number.isFinite(parsed) ? parsed : null;
+}
+
+function codes(value: string): number[] | null {
+  const list = value
+    .split(/[\s,;]+/)
+    .map((part) => Number(part))
+    .filter((code) => Number.isInteger(code) && code > 0);
+  return list.length > 0 ? list : null;
+}
+
+export function buildConfig(
+  method: CheckMethod,
+  fields: Record<string, string>,
+): Record<string, unknown> {
+  if (method === "http") {
+    const config: Record<string, unknown> = {};
+    if (fields.contains.trim()) config.contains = fields.contains.trim();
+    const slow = numberOrNull(fields.warn_latency_ms);
+    if (slow !== null) config.warn_latency_ms = slow;
+    const expected = codes(fields.expect_status);
+    if (expected) config.expect_status = expected;
+    return config;
+  }
+  if (method === "tls") {
+    return {
+      warn_days: numberOrNull(fields.warn_days) ?? 14,
+      fail_days: numberOrNull(fields.fail_days) ?? 3,
+    };
+  }
+  return {};
 }

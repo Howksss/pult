@@ -1,4 +1,4 @@
-import type { Block, BlockChecks, Graph } from "../api";
+import type { Block, ChecksApi, Graph } from "../api";
 import { connections, KIND_LABELS, type Connection } from "../graph";
 import { STATUS_PRESENTATION } from "../status";
 import { ChecksPanel } from "./Checks";
@@ -57,10 +57,10 @@ interface InspectorProps {
   block: Block;
   onSelect: (blockId: number) => void;
   onClose: () => void;
-  loadChecks?: (blockId: number, signal: AbortSignal) => Promise<BlockChecks>;
+  checksApi?: ChecksApi;
 }
 
-export function Inspector({ graph, block, onSelect, onClose, loadChecks }: InspectorProps) {
+export function Inspector({ graph, block, onSelect, onClose, checksApi }: InspectorProps) {
   const { incoming, outgoing } = connections(graph, block.id);
   return (
     <aside className="inspector" aria-label={`Блок ${block.name}`}>
@@ -78,7 +78,7 @@ export function Inspector({ graph, block, onSelect, onClose, loadChecks }: Inspe
         <StatusBadge status={block.status} />
         <p className="inspector__description">{block.description ?? "Без описания"}</p>
       </section>
-      <ChecksPanel blockId={block.id} refreshKey={graph.generated_at} load={loadChecks} />
+      <ChecksPanel blockId={block.id} refreshKey={graph.generated_at} api={checksApi} />
       <ConnectionList title="Входящие" items={incoming} direction="in" onSelect={onSelect} />
       <ConnectionList title="Исходящие" items={outgoing} direction="out" onSelect={onSelect} />
       <section className="inspector__agent">

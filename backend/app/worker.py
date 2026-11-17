@@ -4,6 +4,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
+from functools import partial
 
 import httpx
 from sqlalchemy import func, select
@@ -15,7 +16,7 @@ from app.core.observability import configure_logging
 from app.db import get_engine
 from app.integrations.telegram import TelegramNotifier
 from app.models import Block, CheckResult, CheckStatus, HealthCheck, Project
-from app.services.checks import PULL_METHODS, Outcome, run_check
+from app.services.checks import PULL_METHODS, Guard, Outcome, run_check
 from app.services.graph_status import as_utc
 from app.services.results import NewResult, notify, record_results
 
@@ -103,10 +104,11 @@ def main(sleep: Callable[[float], None] = time.sleep) -> None:
     factory = sessionmaker(bind=get_engine(), expire_on_commit=False)
     notifier = TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id)
     headers = {"User-Agent": f"Pult/{__version__} health check"}
-    with httpx.Client(follow_redirects=True, headers=headers) as client:
+    runner = partial(run_check, guard=Guard(allow_private=settings.allow_private_targets))
+    with httpx.Client(headers=headers) as client:
         while True:
             try:
-                count = run_due(factory, client, notifier)
+                count = run_due(factory, client, notifier, runner=runner)
                 if count:
                     logger.info("checks done", extra={"fields": {"count": count}})
             except Exception:
