@@ -112,7 +112,7 @@ def expected_status(config: dict[str, Any], code: int) -> bool:
     return 200 <= code < 400
 
 
-def default_port(url: httpx.URL) -> int:
+def url_port(url: httpx.URL) -> int:
     return url.port or (443 if url.scheme == "https" else 80)
 
 
@@ -120,7 +120,7 @@ def fetch_pinned(
     client: httpx.Client, method: str, url: httpx.URL, guard: Guard, timeout: int
 ) -> tuple[httpx.Response, httpx.URL]:
     for _ in range(MAX_REDIRECTS + 1):
-        address = guard.address(url.host, default_port(url))
+        address = guard.address(url.host, url_port(url))
         response = client.request(
             method,
             url.copy_with(host=address),
@@ -138,34 +138,9 @@ def fetch_pinned(
     raise httpx.TooManyRedirects(f"more than {MAX_REDIRECTS} redirects")
 
 
-def run_http(check: HealthCheck, client: httpx.Client, guard: Guard | None = None) -> Outcome:
-    config = check.config or {}
-    method = config.get("method", "GET")
-    details: dict[str, Any] = {"url": check.target, "method": method}
-    url = httpx.URL(check.target)
-    started = clock()
-    try:
-        response, final_url = fetch_pinned(client, method, url, guard or Guard(), check.timeout_sec)
-    except BlockedAddressError as error:
-        return blocked(error, details)
-    except httpx.TooManyRedirects:
-        latency = round((clock() - started) * 1000)
-        message = f"Больше {MAX_REDIRECTS} перенаправлений подряд"
-        return Outcome(CheckStatus.fail, latency, message, "http_status", details)
-    except (httpx.HTTPError, OSError) as error:
-        latency = round((clock() - started) * 1000)
-        kind, message = network_failure(error, url.host or check.target, check.timeout_sec)
-        details["error"] = str(error)[:300]
-        return Outcome(CheckStatus.fail, latency, message, kind, details)
-    latency = round((clock() - started) * 1000)
-    details.update(
-        status_code=response.status_code,
-        reason=response.reason_phrase,
-        latency_ms=latency,
-        content_type=response.headers.get("content-type"),
-    )
-    if final_url != url:
-        details["final_url"] = str(final_url)
+def http_outcome(
+    config: dict[str, Any], response: httpx.Response, latency: int, details: dict[str, Any]
+) -> Outcome:
     if not expected_status(config, response.status_code):
         details["body_excerpt"] = response.text[:BODY_EXCERPT]
         message = f"HTTP {response.status_code} {response.reason_phrase}".strip()
@@ -179,6 +154,39 @@ def run_http(check: HealthCheck, client: httpx.Client, guard: Guard | None = Non
         message = f"Ответ за {seconds(latency)}, порог {seconds(warn_latency)}"
         return Outcome(CheckStatus.warn, latency, message, "slow", details)
     return Outcome(CheckStatus.ok, latency, None, None, details)
+
+
+def http_failure(error: Exception, check: HealthCheck, latency: int, details: dict[str, Any]) -> Outcome:
+    if isinstance(error, httpx.TooManyRedirects):
+        message = f"Больше {MAX_REDIRECTS} перенаправлений подряд"
+        return Outcome(CheckStatus.fail, latency, message, "http_status", details)
+    kind, message = network_failure(error, httpx.URL(check.target).host or check.target, check.timeout_sec)
+    details["error"] = str(error)[:300]
+    return Outcome(CheckStatus.fail, latency, message, kind, details)
+
+
+def run_http(check: HealthCheck, client: httpx.Client, guard: Guard | None = None) -> Outcome:
+    config = check.config or {}
+    method = config.get("method", "GET")
+    details: dict[str, Any] = {"url": check.target, "method": method}
+    url = httpx.URL(check.target)
+    started = clock()
+    try:
+        response, final_url = fetch_pinned(client, method, url, guard or Guard(), check.timeout_sec)
+    except BlockedAddressError as error:
+        return blocked(error, details)
+    except (httpx.HTTPError, OSError) as error:
+        return http_failure(error, check, round((clock() - started) * 1000), details)
+    latency = round((clock() - started) * 1000)
+    details.update(
+        status_code=response.status_code,
+        reason=response.reason_phrase,
+        latency_ms=latency,
+        content_type=response.headers.get("content-type"),
+    )
+    if final_url != url:
+        details["final_url"] = str(final_url)
+    return http_outcome(config, response, latency, details)
 
 
 CertFetcher = Callable[[str, str, int, int], dict[str, Any]]

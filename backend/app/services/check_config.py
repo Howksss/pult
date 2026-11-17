@@ -66,26 +66,35 @@ def target_host(method: CheckMethod, target: str) -> str | None:
     return None
 
 
+def normalize_url(target: str) -> str:
+    try:
+        url = httpx.URL(target)
+    except httpx.InvalidURL as error:
+        raise ValueError("адрес не разобрать") from error
+    if url.scheme not in ("http", "https") or not url.host:
+        raise ValueError("адрес должен начинаться с http:// или https://")
+    return target
+
+
+def normalize_host(method: CheckMethod, target: str) -> str:
+    if "://" in target or "/" in target:
+        raise ValueError("укажите хост без схемы и пути, например pos.example или pos.example:5432")
+    host, port = split_host(target, 0)
+    if method is CheckMethod.tcp and not 1 <= port <= 65535:
+        raise ValueError("укажите порт, например db.example:5432")
+    if not host:
+        raise ValueError("укажите хост")
+    return target
+
+
 def normalize_target(method: CheckMethod, target: str) -> str:
     target = target.strip()
     if not target:
         raise ValueError("цель проверки не указана")
     if method is CheckMethod.http:
-        try:
-            url = httpx.URL(target)
-        except httpx.InvalidURL as error:
-            raise ValueError("адрес не разобрать") from error
-        if url.scheme not in ("http", "https") or not url.host:
-            raise ValueError("адрес должен начинаться с http:// или https://")
-        return target
+        return normalize_url(target)
     if method in (CheckMethod.tls, CheckMethod.tcp):
-        if "://" in target or "/" in target:
-            raise ValueError("укажите хост без схемы и пути, например pos.example или pos.example:5432")
-        host, port = split_host(target, 0)
-        if method is CheckMethod.tcp and not 1 <= port <= 65535:
-            raise ValueError("укажите порт, например db.example:5432")
-        if not host:
-            raise ValueError("укажите хост")
+        return normalize_host(method, target)
     return target
 
 
