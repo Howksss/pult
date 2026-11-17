@@ -67,11 +67,16 @@ paths:
     get:
       tags: [graph]
       operationId: getProjectGraph
-      security: []
+      security:
+        - userSession: []
       summary: Граф проекта со статусами блоков
       parameters:
         - $ref: "#/components/parameters/ProjectId"
       responses:
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "200":
           description: Блоки, связи и статусы
           content:
@@ -84,7 +89,8 @@ paths:
     post:
       tags: [graph]
       operationId: createBlock
-      security: []
+      security:
+        - userSession: []
       summary: Добавить блок
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -95,6 +101,10 @@ paths:
             schema:
               $ref: "#/components/schemas/BlockCreate"
       responses:
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "201":
           description: Блок создан
           content:
@@ -111,7 +121,8 @@ paths:
     patch:
       tags: [graph]
       operationId: updateBlock
-      security: []
+      security:
+        - userSession: []
       summary: Изменить имя, описание или положение блока
       parameters:
         - $ref: "#/components/parameters/BlockId"
@@ -122,6 +133,10 @@ paths:
             schema:
               $ref: "#/components/schemas/BlockUpdate"
       responses:
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "200":
           description: Блок изменён
           content:
@@ -137,11 +152,16 @@ paths:
     delete:
       tags: [graph]
       operationId: deleteBlock
-      security: []
+      security:
+        - userSession: []
       summary: Удалить блок вместе со связями и проверками
       parameters:
         - $ref: "#/components/parameters/BlockId"
       responses:
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "204":
           description: Блок удалён
         "404":
@@ -150,7 +170,8 @@ paths:
     get:
       tags: [checks]
       operationId: listBlockChecks
-      security: []
+      security:
+        - userSession: []
       summary: Проверки блока с последним результатом и историей
       description: |
         Проблемные проверки идут первыми, выключенные — в конце.
@@ -158,6 +179,10 @@ paths:
       parameters:
         - $ref: "#/components/parameters/BlockId"
       responses:
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "200":
           description: Проверки блока
           content:
@@ -169,7 +194,8 @@ paths:
     post:
       tags: [checks]
       operationId: createCheck
-      security: []
+      security:
+        - userSession: []
       summary: Добавить проверку блоку
       description: |
         Цель и настройки проверяются по типу. Адреса во внутренней сети (localhost, частные, link-local)
@@ -183,6 +209,10 @@ paths:
             schema:
               $ref: "#/components/schemas/CheckCreate"
       responses:
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "201":
           description: Проверка создана
           content:
@@ -197,7 +227,8 @@ paths:
     patch:
       tags: [checks]
       operationId: updateCheck
-      security: []
+      security:
+        - userSession: []
       summary: Изменить проверку
       description: Тип проверки не меняется — для другого типа создаётся новая проверка.
       parameters:
@@ -209,6 +240,10 @@ paths:
             schema:
               $ref: "#/components/schemas/CheckUpdate"
       responses:
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "200":
           description: Проверка изменена
           content:
@@ -222,11 +257,16 @@ paths:
     delete:
       tags: [checks]
       operationId: deleteCheck
-      security: []
+      security:
+        - userSession: []
       summary: Удалить проверку вместе с историей
       parameters:
         - $ref: "#/components/parameters/CheckId"
       responses:
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "204":
           description: Проверка удалена
         "404":
@@ -235,12 +275,17 @@ paths:
     post:
       tags: [checks]
       operationId: runCheck
-      security: []
+      security:
+        - userSession: []
       summary: Выполнить проверку сейчас
       description: Только для http, tls, tcp. Остальные присылает сервер клиента — ответ 409.
       parameters:
         - $ref: "#/components/parameters/CheckId"
       responses:
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "200":
           description: Проверка выполнена, результат записан
           content:
@@ -259,11 +304,16 @@ paths:
     get:
       tags: [scopes]
       operationId: listScopes
-      security: []
+      security:
+        - userSession: []
       summary: Область доступа блока
       parameters:
         - $ref: "#/components/parameters/BlockId"
       responses:
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "200":
           description: Пути, отсортированные по алфавиту
           content:
@@ -277,7 +327,8 @@ paths:
     post:
       tags: [scopes]
       operationId: createScope
-      security: []
+      security:
+        - userSession: []
       summary: Добавить путь в область блока
       description: |
         Путь — шаблон glob относительно корня репозитория: `*` — в пределах папки, `**` — любые вложенные папки,
@@ -291,6 +342,10 @@ paths:
             schema:
               $ref: "#/components/schemas/ScopeCreate"
       responses:
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "201":
           description: Путь добавлен
           content:
@@ -307,7 +362,8 @@ paths:
     patch:
       tags: [scopes]
       operationId: updateScope
-      security: []
+      security:
+        - userSession: []
       summary: Сменить право на путь
       parameters:
         - $ref: "#/components/parameters/ScopeId"
@@ -318,6 +374,10 @@ paths:
             schema:
               $ref: "#/components/schemas/ScopeUpdate"
       responses:
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "200":
           description: Право изменено
           content:
@@ -331,11 +391,16 @@ paths:
     delete:
       tags: [scopes]
       operationId: deleteScope
-      security: []
+      security:
+        - userSession: []
       summary: Убрать путь из области
       parameters:
         - $ref: "#/components/parameters/ScopeId"
       responses:
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "204":
           description: Путь убран
         "404":
@@ -344,7 +409,8 @@ paths:
     post:
       tags: [graph]
       operationId: createLink
-      security: []
+      security:
+        - userSession: []
       summary: Соединить два блока проекта
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -355,6 +421,10 @@ paths:
             schema:
               $ref: "#/components/schemas/LinkCreate"
       responses:
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "201":
           description: Связь создана
           content:
@@ -397,8 +467,245 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "422":
           $ref: "#/components/responses/ValidationError"
+  /api/v1/auth/register:
+    post:
+      tags: [auth]
+      operationId: register
+      security: []
+      summary: Зарегистрироваться и войти
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Registration"
+      responses:
+        "201":
+          description: Готово
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "403":
+          description: Регистрация закрыта (ALLOW_SIGNUP=false)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      security: []
+      summary: Войти по email и паролю
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Credentials"
+      responses:
+        "200":
+          description: Готово
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      security: []
+      summary: "Выйти: сессия удаляется, cookie стирается"
+      responses:
+        "204":
+          description: Готово
+  /api/v1/auth/me:
+    get:
+      tags: [auth]
+      operationId: me
+      security:
+        - userSession: []
+      summary: Текущий пользователь и его проекты
+      responses:
+        "200":
+          description: Готово
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/v1/projects:
+    get:
+      tags: [projects]
+      operationId: listProjects
+      security:
+        - userSession: []
+      summary: Проекты пользователя с ролью
+      responses:
+        "200":
+          description: Готово
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MemberProject"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [projects]
+      operationId: createProject
+      security:
+        - userSession: []
+      summary: "Создать проект: создатель становится владельцем"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectCreate"
+      responses:
+        "201":
+          description: Готово
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectCreated"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/projects/{project_id}/members:
+    get:
+      tags: [projects]
+      operationId: listMembers
+      security:
+        - userSession: []
+      summary: Участники проекта
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Готово
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Member"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [projects]
+      operationId: addMember
+      security:
+        - userSession: []
+      summary: Добавить участника по email (только владелец)
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberAdd"
+      responses:
+        "201":
+          description: Готово
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/projects/{project_id}/members/{user_id}:
+    patch:
+      tags: [projects]
+      operationId: updateMember
+      security:
+        - userSession: []
+      summary: Сменить роль участника (только владелец)
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberUpdate"
+      responses:
+        "200":
+          description: Готово
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      tags: [projects]
+      operationId: removeMember
+      security:
+        - userSession: []
+      summary: Убрать участника (только владелец)
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "204":
+          description: Готово
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
 components:
   securitySchemes:
+    userSession:
+      type: apiKey
+      in: cookie
+      name: pult_session
+      description: Сессия после входа, cookie HttpOnly, SameSite=Lax, Secure, 30 дней
     probeToken:
       type: apiKey
       in: header
@@ -420,6 +727,13 @@ components:
         minimum: 1
     ScopeId:
       name: scope_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    UserId:
+      name: user_id
       in: path
       required: true
       schema:
@@ -447,6 +761,18 @@ components:
             $ref: "#/components/schemas/Problem"
     Unauthorized:
       description: Токен probe не передан или неверен
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthenticated:
+      description: Нет сессии, она истекла или неверны email и пароль
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Forbidden:
+      description: Роли в проекте не хватает для операции
       content:
         application/problem+json:
           schema:
@@ -845,6 +1171,117 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Check"
+    MemberRole:
+      type: string
+      enum: [owner, developer, client]
+      description: owner — настраивает всё, developer — смотрит и запускает проверки, client — смотрит
+    Credentials:
+      type: object
+      required: [email, password]
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          maxLength: 255
+        password:
+          type: string
+          minLength: 1
+          maxLength: 200
+    Registration:
+      type: object
+      required: [email, password, full_name]
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          maxLength: 255
+        password:
+          type: string
+          minLength: 10
+          maxLength: 200
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 150
+    MemberProject:
+      type: object
+      required: [id, name, role]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        role:
+          $ref: "#/components/schemas/MemberRole"
+    Me:
+      type: object
+      required: [id, email, full_name, projects]
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        full_name:
+          type: string
+        projects:
+          type: array
+          items:
+            $ref: "#/components/schemas/MemberProject"
+    ProjectCreate:
+      type: object
+      required: [name, repo_full_name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        repo_full_name:
+          type: string
+          maxLength: 200
+          pattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    ProjectCreated:
+      type: object
+      required: [id, name, role, probe_token]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        role:
+          $ref: "#/components/schemas/MemberRole"
+        probe_token:
+          type: string
+          description: Показывается один раз, в базе хранится только SHA-256
+    Member:
+      type: object
+      required: [user_id, email, full_name, role]
+      properties:
+        user_id:
+          type: integer
+        email:
+          type: string
+        full_name:
+          type: string
+        role:
+          $ref: "#/components/schemas/MemberRole"
+    MemberAdd:
+      type: object
+      required: [email, role]
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          maxLength: 255
+        role:
+          $ref: "#/components/schemas/MemberRole"
+    MemberUpdate:
+      type: object
+      required: [role]
+      additionalProperties: false
+      properties:
+        role:
+          $ref: "#/components/schemas/MemberRole"
     Problem:
       type: object
       required: [type, title, status]

@@ -11,7 +11,17 @@ import {
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
-import { fetchGraph, moveBlock, type Graph } from "./api";
+import {
+  fetchGraph,
+  fetchMe,
+  logout,
+  moveBlock,
+  type Graph,
+  type Me,
+  type MemberProject,
+} from "./api";
+import { NewProject, SignIn } from "./components/Auth";
+import { MembersPanel } from "./components/Members";
 import { BlockNode } from "./components/BlockNode";
 import { FlowEdge } from "./components/FlowEdge";
 import { Icon } from "./components/Icon";
@@ -27,13 +37,20 @@ import {
   type BlockNode as BlockNodeType,
 } from "./graph";
 
-const PROJECT_ID = Number(new URLSearchParams(window.location.search).get("project") ?? "1");
 const REFRESH_MS = 10_000;
 const INSPECTOR_WIDTH = 436;
 const nodeTypes = { block: BlockNode };
 const edgeTypes = { flow: FlowEdge };
 
-function Board() {
+interface BoardProps {
+  project: MemberProject;
+  me: Me;
+  onSwitch: (projectId: number) => void;
+  onLogout: () => void;
+}
+
+function Board({ project, me, onSwitch, onLogout }: BoardProps) {
+  const [showMembers, setShowMembers] = useState(false);
   const [graph, setGraph] = useState<Graph | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -45,14 +62,16 @@ function Board() {
   useEffect(() => {
     const controller = new AbortController();
     const load = () =>
-      fetchGraph(PROJECT_ID, controller.signal)
+      fetchGraph(project.id, controller.signal)
         .then((data) => {
           setGraph(data);
           setNodes((current) => mergeNodes(current, toNodes(data)));
           setError(null);
         })
         .catch((reason: unknown) => {
-          if (!controller.signal.aborted) {
+          if (String(reason).includes("API 401")) {
+            onLogout();
+          } else if (!controller.signal.aborted) {
             setError(String(reason));
           }
         });
@@ -62,7 +81,7 @@ function Board() {
       controller.abort();
       window.clearInterval(timer);
     };
-  }, []);
+  }, [project.id, onLogout]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -139,7 +158,12 @@ function Board() {
   return (
     <div className="layout">
       <TopBar
-        projectId={PROJECT_ID}
+        projectId={project.id}
+        projects={me.projects}
+        userName={me.full_name}
+        onSwitchProject={onSwitch}
+        onMembers={() => setShowMembers(true)}
+        onLogout={onLogout}
         projectName={graph?.project_name ?? null}
         counts={counts}
         summary={summary}
@@ -214,6 +238,13 @@ function Board() {
             {toast}
           </div>
         )}
+        {showMembers && (
+          <MembersPanel
+            projectId={project.id}
+            myRole={project.role}
+            onClose={() => setShowMembers(false)}
+          />
+        )}
         {graph && selected && (
           <Inspector
             graph={graph}
@@ -228,9 +259,54 @@ function Board() {
 }
 
 export default function App() {
+  const [me, setMe] = useState<Me | null | undefined>(undefined);
+  const [projectId, setProjectId] = useState(() =>
+    Number(new URLSearchParams(window.location.search).get("project")),
+  );
+
+  useEffect(() => {
+    fetchMe()
+      .then(setMe)
+      .catch(() => setMe(null));
+  }, []);
+
+  const switchProject = useCallback((id: number) => {
+    window.history.replaceState(null, "", `?project=${id}`);
+    setProjectId(id);
+  }, []);
+
+  const signOut = useCallback(() => {
+    logout()
+      .catch(() => undefined)
+      .finally(() => setMe(null));
+  }, []);
+
+  if (me === undefined) {
+    return <div className="auth" />;
+  }
+  if (me === null) {
+    return <SignIn onSignedIn={setMe} />;
+  }
+  if (me.projects.length === 0) {
+    return (
+      <NewProject
+        onCreated={(created) => {
+          setMe({ ...me, projects: [created] });
+          switchProject(created.id);
+        }}
+      />
+    );
+  }
+  const project = me.projects.find((item) => item.id === projectId) ?? me.projects[0];
   return (
     <ReactFlowProvider>
-      <Board />
+      <Board
+        key={project.id}
+        project={project}
+        me={me}
+        onSwitch={switchProject}
+        onLogout={signOut}
+      />
     </ReactFlowProvider>
   );
 }

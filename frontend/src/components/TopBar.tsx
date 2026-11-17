@@ -1,3 +1,4 @@
+import type { MemberProject } from "../api";
 import type { Summary } from "../graph";
 import type { BlockStatus } from "../status";
 import { Icon } from "./Icon";
@@ -48,6 +49,11 @@ interface TopBarProps {
   updatedAt: string | null;
   stale: boolean;
   onShowBlock: (blockId: number) => void;
+  projects?: MemberProject[];
+  userName?: string;
+  onSwitchProject?: (projectId: number) => void;
+  onMembers?: () => void;
+  onLogout?: () => void;
 }
 
 export function TopBar({
@@ -58,6 +64,11 @@ export function TopBar({
   updatedAt,
   stale,
   onShowBlock,
+  projects = [],
+  userName,
+  onSwitchProject,
+  onMembers,
+  onLogout,
 }: TopBarProps) {
   const total = counts ? Object.values(counts).reduce((sum, value) => sum + value, 0) : 0;
   const ticks = counts
@@ -76,7 +87,22 @@ export function TopBar({
         />
         <span aria-hidden="true">ult</span>
       </span>
-      <span className="topbar__project">{projectName ?? `Проект ${projectId}`}</span>
+      {projects.length > 1 && onSwitchProject ? (
+        <select
+          className="topbar__switch"
+          value={projectId}
+          aria-label="Проект"
+          onChange={(event) => onSwitchProject(Number(event.target.value))}
+        >
+          {projects.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <span className="topbar__project">{projectName ?? `Проект ${projectId}`}</span>
+      )}
       {counts && summary && total > 0 && (
         <SystemStatus summary={summary} onShowBlock={onShowBlock} />
       )}
@@ -97,6 +123,16 @@ export function TopBar({
           {stale ? "Нет связи, данные от" : "Обновлено"}
           <span className="live__time">{new Date(updatedAt).toLocaleTimeString("ru-RU")}</span>
         </span>
+      )}
+      {onMembers && (
+        <button type="button" className="text-button" onClick={onMembers}>
+          Участники
+        </button>
+      )}
+      {onLogout && (
+        <button type="button" className="text-button" onClick={onLogout} title={userName}>
+          Выйти
+        </button>
       )}
     </header>
   );

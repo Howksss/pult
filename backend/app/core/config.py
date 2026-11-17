@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
     allow_private_targets: bool = False
+    cookie_secure: bool = True
+    allow_signup: bool = True
 
 
 @lru_cache

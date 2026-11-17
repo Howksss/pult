@@ -135,7 +135,9 @@ jobs:
       - name: load demo data and check graph
         run: |
           docker compose -f deploy/docker-compose.yml exec -T db psql -U pult -d pult -v ON_ERROR_STOP=1 -q < backend/scripts/seed_demo.sql
-          EXPECT_BLOCKS=8 deploy/smoke.sh
+          curl -fsS -c /tmp/jar -H "Content-Type: application/json"             -d '{"email":"smoke@example.com","password":"smoke-password-123","full_name":"Smoke"}'             http://localhost:8080/api/v1/auth/register > /dev/null
+          docker compose -f deploy/docker-compose.yml exec -T db psql -U pult -d pult -v ON_ERROR_STOP=1 -c             "insert into project_member (project_id, user_id, role) select 1, id, 'owner' from app_user where email = 'smoke@example.com'"
+          SMOKE_COOKIE="pult_session=$(awk '$6 == "pult_session" {print $7}' /tmp/jar)" EXPECT_BLOCKS=8 deploy/smoke.sh
       - name: environment logs
         if: failure()
         run: docker compose -f deploy/docker-compose.yml logs

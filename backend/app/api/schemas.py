@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models import BlockKind, CheckMethod, CheckStatus, ScopeAccess
+from app.models import BlockKind, CheckMethod, CheckStatus, MemberRole, ScopeAccess
 from app.services.check_config import normalize_config, normalize_target
 from app.services.scope import normalize_glob
 from app.services.status import BlockStatus
@@ -192,3 +192,64 @@ class ScopeCreate(StrictModel):
 
 class ScopeUpdate(StrictModel):
     access: ScopeAccess
+
+
+EMAIL = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+
+
+class Credentials(StrictModel):
+    email: str = Field(max_length=255, pattern=EMAIL)
+    password: str = Field(min_length=1, max_length=200)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def lower_email(cls, value: object) -> object:
+        return value.strip().lower() if isinstance(value, str) else value
+
+
+class RegisterIn(Credentials):
+    password: str = Field(min_length=10, max_length=200)
+    full_name: str = Field(min_length=1, max_length=150)
+
+
+class MemberProject(BaseModel):
+    id: int
+    name: str
+    role: MemberRole
+
+
+class MeOut(BaseModel):
+    id: int
+    email: str
+    full_name: str
+    projects: list[MemberProject]
+
+
+class ProjectCreate(StrictModel):
+    name: str = Field(min_length=1, max_length=150)
+    repo_full_name: str = Field(max_length=200, pattern=r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+
+
+class ProjectCreated(MemberProject):
+    probe_token: str
+
+
+class MemberOut(BaseModel):
+    user_id: int
+    email: str
+    full_name: str
+    role: MemberRole
+
+
+class MemberAdd(StrictModel):
+    email: str = Field(max_length=255, pattern=EMAIL)
+    role: MemberRole
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def lower_email(cls, value: object) -> object:
+        return value.strip().lower() if isinstance(value, str) else value
+
+
+class MemberUpdate(StrictModel):
+    role: MemberRole

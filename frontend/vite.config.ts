@@ -15,6 +15,8 @@ export default defineConfig({
       provider: "v8",
       include: [
         "src/checks.ts",
+        "src/components/Auth.tsx",
+        "src/components/Members.tsx",
         "src/components/BlockNode.tsx",
         "src/components/CheckForm.tsx",
         "src/components/Checks.tsx",

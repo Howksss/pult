@@ -27,7 +27,7 @@ class FakeNotifier:
 
 
 @pytest.fixture
-def block_id(db: sessionmaker[Session]) -> int:
+def block_id(db: sessionmaker[Session], tester) -> int:
     with db() as session:
         block = Block(
             project=Project(name="pilot", repo_full_name="example/pilot"),
@@ -36,6 +36,7 @@ def block_id(db: sessionmaker[Session]) -> int:
         )
         session.add(block)
         session.commit()
+        tester.join(block.project_id)
         return block.id
 
 

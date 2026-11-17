@@ -18,11 +18,11 @@ echo "frontend: index.html served"
 
 code="$(curl -s -o /dev/null -w '%{http_code}' "$web/api/v1/projects/999/graph")"
 type="$(curl -s -o /dev/null -w '%{content_type}' "$web/api/v1/projects/999/graph")"
-[[ "$code" == "404" && "$type" == application/problem+json* ]]
+[[ "$code" == "401" && "$type" == application/problem+json* ]]
 echo "proxy: /api via nginx returns $code $type"
 
 if [[ "${EXPECT_BLOCKS:-}" != "" ]]; then
-  curl -fsS "$web/api/v1/projects/1/graph" | python3 -c "
+  curl -fsS -H "Cookie: ${SMOKE_COOKIE:?set SMOKE_COOKIE to a session cookie of a project member}" "$web/api/v1/projects/1/graph" | python3 -c "
 import json, sys
 graph = json.load(sys.stdin)
 blocks = {block['name']: block['status'] for block in graph['blocks']}

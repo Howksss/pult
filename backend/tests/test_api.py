@@ -18,7 +18,7 @@ CHECKS = "/api/v1/blocks/{block_id}/checks"
 
 
 @pytest.fixture
-def pilot(db: sessionmaker[Session]) -> dict[str, int]:
+def pilot(db: sessionmaker[Session], tester) -> dict[str, int]:
     with db() as session:
         project = Project(
             name="pilot", repo_full_name="example/pilot-system", probe_token_hash=hash_token(TOKEN)
@@ -49,6 +49,7 @@ def pilot(db: sessionmaker[Session]) -> dict[str, int]:
             )
         )
         session.commit()
+        tester.join(project.id)
         return {
             "project": project.id,
             "other": other.id,
