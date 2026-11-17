@@ -8,6 +8,7 @@ from functools import partial
 
 import httpx
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app import __version__
@@ -50,9 +51,46 @@ def due_checks(session: Session, now: datetime) -> list[HealthCheck]:
 def safe_run(runner: Runner, check: HealthCheck, client: httpx.Client) -> Outcome:
     try:
         return runner(check, client)
-    except Exception as error:
+    except (OSError, ValueError, KeyError, TypeError, httpx.HTTPError) as error:
         logger.exception("check crashed", extra={"fields": {"health_check_id": check.id}})
         return Outcome(CheckStatus.fail, None, f"Проверка не выполнилась: {error}"[:300], "internal")
+
+
+def run_all(due: list[HealthCheck], client: httpx.Client, runner: Runner) -> list[Outcome]:
+    with ThreadPoolExecutor(max_workers=PARALLEL_CHECKS) as pool:
+        return list(pool.map(lambda check: safe_run(runner, check, client), due))
+
+
+def to_result(check: HealthCheck, outcome: Outcome, checked_at: datetime) -> NewResult:
+    return NewResult(
+        health_check_id=check.id,
+        status=outcome.status,
+        checked_at=checked_at,
+        latency_ms=outcome.latency_ms,
+        message=outcome.message,
+        error_kind=outcome.error_kind,
+        details=outcome.details or None,
+    )
+
+
+def store(
+    session: Session, notifier: TelegramNotifier, due: list[HealthCheck], outcomes: list[Outcome]
+) -> None:
+    checked_at = datetime.now(UTC)
+    projects = dict(
+        session.execute(select(Block.id, Block.project_id).where(Block.id.in_({c.block_id for c in due})))
+        .tuples()
+        .all()
+    )
+    grouped: dict[int, list[tuple[HealthCheck, Outcome]]] = defaultdict(list)
+    for check, outcome in zip(due, outcomes, strict=True):
+        grouped[projects[check.block_id]].append((check, outcome))
+    for project_id, items in grouped.items():
+        results = [to_result(check, outcome, checked_at) for check, outcome in items]
+        changes = record_results(session, results, sorted({check.block_id for check, _ in items}))
+        project = session.get(Project, project_id)
+        if project is not None:
+            notify(session, notifier, project, changes)
 
 
 def run_due(
@@ -66,35 +104,9 @@ def run_due(
         due = due_checks(session, now or datetime.now(UTC))
     if not due:
         return 0
-    with ThreadPoolExecutor(max_workers=PARALLEL_CHECKS) as pool:
-        outcomes = list(pool.map(lambda check: safe_run(runner, check, client), due))
-    checked_at = datetime.now(UTC)
+    outcomes = run_all(due, client, runner)
     with factory() as session:
-        projects = dict(
-            session.execute(select(Block.id, Block.project_id).where(Block.id.in_({c.block_id for c in due})))
-            .tuples()
-            .all()
-        )
-        grouped: dict[int, list[tuple[HealthCheck, Outcome]]] = defaultdict(list)
-        for check, outcome in zip(due, outcomes, strict=True):
-            grouped[projects[check.block_id]].append((check, outcome))
-        for project_id, items in grouped.items():
-            results = [
-                NewResult(
-                    health_check_id=check.id,
-                    status=outcome.status,
-                    checked_at=checked_at,
-                    latency_ms=outcome.latency_ms,
-                    message=outcome.message,
-                    error_kind=outcome.error_kind,
-                    details=outcome.details or None,
-                )
-                for check, outcome in items
-            ]
-            changes = record_results(session, results, sorted({check.block_id for check, _ in items}))
-            project = session.get(Project, project_id)
-            if project is not None:
-                notify(session, notifier, project, changes)
+        store(session, notifier, due, outcomes)
     return len(due)
 
 
@@ -111,7 +123,7 @@ def main(sleep: Callable[[float], None] = time.sleep) -> None:
                 count = run_due(factory, client, notifier, runner=runner)
                 if count:
                     logger.info("checks done", extra={"fields": {"count": count}})
-            except Exception:
+            except (SQLAlchemyError, OSError, httpx.HTTPError):
                 logger.exception("worker tick failed")
             sleep(TICK_SEC)
 

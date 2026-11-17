@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app import worker
@@ -108,7 +109,7 @@ def test_crashed_runner_becomes_internal_failure(db):
     ids = seed(db)
 
     def runner(check: HealthCheck, client: httpx.Client) -> Outcome:
-        raise RuntimeError("boom")
+        raise KeyError("notAfter")
 
     with httpx.Client() as client:
         worker.run_due(db, client, FakeNotifier(), runner=runner, now=NOW)
@@ -117,7 +118,7 @@ def test_crashed_runner_becomes_internal_failure(db):
     assert (result.status, result.error_kind, result.message) == (
         CheckStatus.fail,
         "internal",
-        "Проверка не выполнилась: boom",
+        "Проверка не выполнилась: 'notAfter'",
     )
 
 
@@ -133,7 +134,7 @@ def test_main_keeps_running_after_a_failed_tick(monkeypatch):
         calls.append("tick")
         if len(calls) == 1:
             return 3
-        raise RuntimeError("database is down")
+        raise OperationalError("select 1", {}, Exception("database is down"))
 
     def fake_sleep(seconds: float) -> None:
         if len(calls) >= 2:

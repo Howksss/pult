@@ -186,6 +186,7 @@ CertFetcher = Callable[[str, str, int, int], dict[str, Any]]
 
 def fetch_certificate(host: str, address: str, port: int, timeout: int) -> dict[str, Any]:
     context = ssl.create_default_context()
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
     with (
         socket.create_connection((address, port), timeout=timeout) as raw,
         context.wrap_socket(raw, server_hostname=host) as wrapped,
@@ -223,8 +224,14 @@ def run_tls(
         details["error"] = str(error)[:300]
         return Outcome(CheckStatus.fail, latency, message, kind, details)
     latency = round((clock() - started) * 1000)
+    return certificate_outcome(cert, config, details, latency, now or datetime.now(UTC))
+
+
+def certificate_outcome(
+    cert: dict[str, Any], config: dict[str, Any], details: dict[str, Any], latency: int, now: datetime
+) -> Outcome:
     expires = datetime.fromtimestamp(ssl.cert_time_to_seconds(cert["notAfter"]), UTC)
-    days_left = ((expires - (now or datetime.now(UTC))).total_seconds()) // 86400
+    days_left = ((expires - now).total_seconds()) // 86400
     details.update(
         not_after=expires.isoformat(),
         days_left=int(days_left),

@@ -89,7 +89,7 @@ def check_state(check: HealthCheck, result: CheckResult | None, now: datetime) -
 
 def latest_results(
     session: Session, block_ids: Sequence[int]
-) -> list[tuple[HealthCheck, CheckResult | None]]:
+) -> Sequence[tuple[HealthCheck, CheckResult | None]]:
     if not block_ids:
         return []
     latest_id = (
@@ -100,13 +100,16 @@ def latest_results(
         .correlate(HealthCheck)
         .scalar_subquery()
     )
-    rows = session.execute(
-        select(HealthCheck, CheckResult)
-        .outerjoin(CheckResult, CheckResult.id == latest_id)
-        .where(HealthCheck.block_id.in_(block_ids), HealthCheck.enabled.is_(True))
-        .order_by(HealthCheck.id)
-    ).all()
-    return [(check, result) for check, result in rows]
+    return (
+        session.execute(
+            select(HealthCheck, CheckResult)
+            .outerjoin(CheckResult, CheckResult.id == latest_id)
+            .where(HealthCheck.block_id.in_(block_ids), HealthCheck.enabled.is_(True))
+            .order_by(HealthCheck.id)
+        )
+        .tuples()
+        .all()
+    )
 
 
 def block_diagnoses(session: Session, block_ids: Sequence[int], now: datetime) -> dict[int, BlockDiagnosis]:
