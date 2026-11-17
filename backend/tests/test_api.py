@@ -86,6 +86,7 @@ def test_graph_shows_blocks_statuses_and_links(client, pilot):
         json={"source_block_id": pilot["job"], "target_block_id": pilot["pos"], "label": "продажи"},
     )
     graph = call(client, "GET", GRAPH, 200, project_id=pilot["project"]).json()
+    assert graph["project_name"] == "pilot"
     statuses = {block["name"]: block["status"] for block in graph["blocks"]}
     assert statuses == {"Расчёт плана": "unknown", "POS-система": "ok"}
     assert graph["links"][0]["label"] == "продажи"

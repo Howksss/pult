@@ -14,15 +14,11 @@ export function BlockNode({ data, selected }: NodeProps<BlockNodeType>) {
       <Handle type="target" position={Position.Left} className="block-node__handle" />
       <div className="block-node__head">
         <KindIcon kind={block.kind} />
-        <div className="block-node__title">
-          <div className="block-node__name">{block.name}</div>
-          <div className="block-node__kind">{KIND_LABELS[block.kind]}</div>
-        </div>
+        <span className="block-node__kind">{KIND_LABELS[block.kind]}</span>
       </div>
+      <div className="block-node__name">{block.name}</div>
       {block.description && <div className="block-node__description">{block.description}</div>}
-      <div className="block-node__foot">
-        <StatusBadge status={block.status} />
-      </div>
+      <StatusBadge status={block.status} />
       <Handle type="source" position={Position.Right} className="block-node__handle" />
     </div>
   );

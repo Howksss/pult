@@ -35,7 +35,7 @@ export function FlowEdge({
     <g className={className}>
       <BaseEdge id={id} path={path} />
       {!data?.broken && (
-        <circle r={data?.active ? 3.5 : 2.5} className="flow-edge__packet">
+        <circle r={data?.active ? 2.5 : 2} className="flow-edge__packet">
           <animateMotion dur="2.8s" begin={`-${offset}s`} repeatCount="indefinite" path={path} />
         </circle>
       )}

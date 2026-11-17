@@ -2,9 +2,7 @@ import {
   applyNodeChanges,
   Background,
   BackgroundVariant,
-  ControlButton,
-  Controls,
-  MiniMap,
+  Panel,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
@@ -28,21 +26,14 @@ import {
   toNodes,
   type BlockNode as BlockNodeType,
 } from "./graph";
-import { STATUS_COLORS } from "./status";
-import { useTheme } from "./theme";
 
 const PROJECT_ID = Number(new URLSearchParams(window.location.search).get("project") ?? "1");
 const REFRESH_MS = 10_000;
-const INSPECTOR_WIDTH = 356;
+const INSPECTOR_WIDTH = 396;
 const nodeTypes = { block: BlockNode };
 const edgeTypes = { flow: FlowEdge };
 
-function minimapColor(node: BlockNodeType): string {
-  return STATUS_COLORS[node.data.block.status];
-}
-
 function Board() {
-  const [theme, toggleTheme] = useTheme();
   const [graph, setGraph] = useState<Graph | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -149,12 +140,11 @@ function Board() {
     <div className="layout">
       <TopBar
         projectId={PROJECT_ID}
+        projectName={graph?.project_name ?? null}
         counts={counts}
         summary={summary}
         updatedAt={graph?.generated_at ?? null}
         stale={error !== null}
-        theme={theme}
-        onToggleTheme={toggleTheme}
         onShowBlock={(blockId) => focus(blockId, true)}
       />
       <main className={selected ? "canvas canvas--inspecting" : "canvas"}>
@@ -164,7 +154,7 @@ function Board() {
             edges={edges}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
-            colorMode={theme}
+            colorMode="dark"
             onNodesChange={onNodesChange}
             onNodeDragStop={onNodeDragStop}
             onNodeClick={(_, node) => focus(Number(node.id), false)}
@@ -176,37 +166,33 @@ function Board() {
             minZoom={0.3}
             maxZoom={1.8}
           >
-            <Background variant={BackgroundVariant.Dots} gap={22} size={1.4} />
-            <Controls showZoom={false} showFitView={false} showInteractive={false}>
-              <ControlButton
-                onClick={() => zoomIn({ duration: 200 })}
-                title="Приблизить"
-                aria-label="Приблизить"
-              >
-                <Icon name="zoomIn" size={16} />
-              </ControlButton>
-              <ControlButton
+            <Background variant={BackgroundVariant.Dots} gap={24} size={1.2} />
+            <Panel position="bottom-left" className="zoom-bar">
+              <button
+                type="button"
                 onClick={() => zoomOut({ duration: 200 })}
                 title="Отдалить"
                 aria-label="Отдалить"
               >
-                <Icon name="zoomOut" size={16} />
-              </ControlButton>
-              <ControlButton
+                <Icon name="zoomOut" size={20} />
+              </button>
+              <button
+                type="button"
+                onClick={() => zoomIn({ duration: 200 })}
+                title="Приблизить"
+                aria-label="Приблизить"
+              >
+                <Icon name="zoomIn" size={20} />
+              </button>
+              <button
+                type="button"
                 onClick={() => fitView({ padding: 0.18, duration: 300 })}
                 title="Показать всё"
                 aria-label="Показать всё"
               >
-                <Icon name="fit" size={15} />
-              </ControlButton>
-            </Controls>
-            <MiniMap
-              nodeColor={minimapColor}
-              nodeBorderRadius={6}
-              nodeStrokeWidth={0}
-              pannable
-              zoomable
-            />
+                <Icon name="fit" size={19} />
+              </button>
+            </Panel>
           </ReactFlow>
         ) : (
           <div className="canvas__state">

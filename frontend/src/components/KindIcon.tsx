@@ -18,7 +18,7 @@ interface KindIconProps {
 export function KindIcon({ kind, size = "md" }: KindIconProps) {
   return (
     <span className={`kind-icon kind-icon--${kind} kind-icon--${size}`} aria-hidden="true">
-      <Icon name={ICONS[kind]} size={size === "md" ? 20 : 15} />
+      <Icon name={ICONS[kind]} size={size === "md" ? 18 : 15} />
     </span>
   );
 }

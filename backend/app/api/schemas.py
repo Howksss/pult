@@ -50,6 +50,7 @@ class LinkCreate(StrictModel):
 
 class GraphOut(BaseModel):
     project_id: int
+    project_name: str
     generated_at: datetime
     blocks: list[BlockOut]
     links: list[LinkOut]

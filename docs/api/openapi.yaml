@@ -340,10 +340,12 @@ components:
           maxLength: 100
     Graph:
       type: object
-      required: [project_id, generated_at, blocks, links]
+      required: [project_id, project_name, generated_at, blocks, links]
       properties:
         project_id:
           type: integer
+        project_name:
+          type: string
         generated_at:
           type: string
           format: date-time

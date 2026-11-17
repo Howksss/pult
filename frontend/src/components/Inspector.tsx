@@ -40,7 +40,7 @@ function ConnectionList({ title, items, direction, onSelect }: ConnectionListPro
                 <Icon
                   name={direction === "in" ? "arrowLeft" : "arrowRight"}
                   className="connection__arrow"
-                  size={14}
+                  size={15}
                 />
               </button>
             </li>
@@ -63,26 +63,23 @@ export function Inspector({ graph, block, onSelect, onClose }: InspectorProps) {
   return (
     <aside className="inspector" aria-label={`Блок ${block.name}`}>
       <header className="inspector__head">
-        <KindIcon kind={block.kind} />
-        <div className="inspector__title">
-          <h2>{block.name}</h2>
-          <span>{KIND_LABELS[block.kind]}</span>
-        </div>
+        <span className="inspector__kind">
+          <KindIcon kind={block.kind} />
+          {KIND_LABELS[block.kind]}
+        </span>
         <button type="button" className="icon-button" onClick={onClose} aria-label="Закрыть">
           <Icon name="close" size={18} />
         </button>
       </header>
-      <section className="inspector__section">
+      <section className="inspector__summary">
+        <h2 className="inspector__name">{block.name}</h2>
         <StatusBadge status={block.status} />
         <p className="inspector__description">{block.description ?? "Без описания"}</p>
       </section>
       <ConnectionList title="Входящие" items={incoming} direction="in" onSelect={onSelect} />
       <ConnectionList title="Исходящие" items={outgoing} direction="out" onSelect={onSelect} />
       <section className="inspector__agent">
-        <h3 className="inspector__heading">
-          <Icon name="agent" size={15} />
-          Задача агенту
-        </h3>
+        <h3 className="inspector__heading">Задача агенту</h3>
         <textarea
           className="inspector__prompt"
           placeholder={`Что поправить в блоке «${block.name}»?`}
@@ -91,11 +88,10 @@ export function Inspector({ graph, block, onSelect, onClose }: InspectorProps) {
         />
         <div className="inspector__agent-foot">
           <span className="inspector__scope">
-            <Icon name="lock" size={13} />
+            <Icon name="lock" size={14} />
             Только файлы этого блока
           </span>
-          <button type="button" className="button button--primary" disabled>
-            <Icon name="send" size={15} />
+          <button type="button" className="glass-button" disabled>
             Отправить
           </button>
         </div>
