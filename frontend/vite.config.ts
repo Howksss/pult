@@ -19,6 +19,7 @@ export default defineConfig({
         "src/components/CheckForm.tsx",
         "src/components/Checks.tsx",
         "src/components/Inspector.tsx",
+        "src/components/Scopes.tsx",
         "src/components/StatusBadge.tsx",
         "src/components/TopBar.tsx",
         "src/graph.ts",

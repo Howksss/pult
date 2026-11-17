@@ -62,6 +62,7 @@ class BlockLink(Base):
 
 class BlockScope(Base):
     __tablename__ = "block_scope"
+    __table_args__ = (UniqueConstraint("block_id", "path_glob"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     block_id: Mapped[int] = mapped_column(ForeignKey("block.id", ondelete="CASCADE"), index=True)

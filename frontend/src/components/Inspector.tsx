@@ -1,9 +1,10 @@
-import type { Block, ChecksApi, Graph } from "../api";
+import type { Block, ChecksApi, Graph, ScopesApi } from "../api";
 import { connections, KIND_LABELS, type Connection } from "../graph";
 import { STATUS_PRESENTATION } from "../status";
 import { ChecksPanel } from "./Checks";
 import { Icon } from "./Icon";
 import { KindIcon } from "./KindIcon";
+import { ScopesPanel } from "./Scopes";
 import { StatusBadge, StatusDot } from "./StatusBadge";
 
 interface ConnectionListProps {
@@ -58,9 +59,17 @@ interface InspectorProps {
   onSelect: (blockId: number) => void;
   onClose: () => void;
   checksApi?: ChecksApi;
+  scopesApi?: ScopesApi;
 }
 
-export function Inspector({ graph, block, onSelect, onClose, checksApi }: InspectorProps) {
+export function Inspector({
+  graph,
+  block,
+  onSelect,
+  onClose,
+  checksApi,
+  scopesApi,
+}: InspectorProps) {
   const { incoming, outgoing } = connections(graph, block.id);
   return (
     <aside className="inspector" aria-label={`Блок ${block.name}`}>
@@ -81,6 +90,7 @@ export function Inspector({ graph, block, onSelect, onClose, checksApi }: Inspec
       <ChecksPanel blockId={block.id} refreshKey={graph.generated_at} api={checksApi} />
       <ConnectionList title="Входящие" items={incoming} direction="in" onSelect={onSelect} />
       <ConnectionList title="Исходящие" items={outgoing} direction="out" onSelect={onSelect} />
+      <ScopesPanel blockId={block.id} api={scopesApi} />
       <section className="inspector__agent">
         <h3 className="inspector__heading">Задача агенту</h3>
         <textarea
@@ -92,7 +102,7 @@ export function Inspector({ graph, block, onSelect, onClose, checksApi }: Inspec
         <div className="inspector__agent-foot">
           <span className="inspector__scope">
             <Icon name="lock" size={14} />
-            Только файлы этого блока
+            Только пути из области агента
           </span>
           <button type="button" className="glass-button" disabled>
             Отправить
