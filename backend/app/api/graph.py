@@ -6,6 +6,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.api.access import EDIT, VIEW, CurrentUser, require_block, require_project
 from app.api.problems import ProblemError, not_found
 from app.api.schemas import BlockCreate, BlockOut, BlockUpdate, GraphOut, LinkCreate, LinkOut
 from app.db import get_session
@@ -67,8 +68,8 @@ def commit_or_conflict(session: Session, detail: str) -> None:
 
 
 @router.get("/projects/{project_id}/graph", response_model=GraphOut)
-def get_graph(project_id: int, session: SessionDep) -> GraphOut:
-    project = load_project(session, project_id)
+def get_graph(project_id: int, session: SessionDep, user: CurrentUser) -> GraphOut:
+    project = require_project(session, user, project_id, VIEW)
     now = datetime.now(UTC)
     blocks = session.scalars(select(Block).where(Block.project_id == project_id).order_by(Block.id)).all()
     diagnoses = block_diagnoses(session, [block.id for block in blocks], now)
@@ -88,8 +89,8 @@ def get_graph(project_id: int, session: SessionDep) -> GraphOut:
 
 
 @router.post("/projects/{project_id}/blocks", response_model=BlockOut, status_code=201)
-def create_block(project_id: int, payload: BlockCreate, session: SessionDep) -> BlockOut:
-    load_project(session, project_id)
+def create_block(project_id: int, payload: BlockCreate, session: SessionDep, user: CurrentUser) -> BlockOut:
+    require_project(session, user, project_id, EDIT)
     block = Block(
         project_id=project_id,
         kind=payload.kind,
@@ -104,8 +105,8 @@ def create_block(project_id: int, payload: BlockCreate, session: SessionDep) -> 
 
 
 @router.patch("/blocks/{block_id}", response_model=BlockOut)
-def update_block(block_id: int, payload: BlockUpdate, session: SessionDep) -> BlockOut:
-    block = load_block(session, block_id)
+def update_block(block_id: int, payload: BlockUpdate, session: SessionDep, user: CurrentUser) -> BlockOut:
+    block = require_block(session, user, block_id, EDIT)
     changes = payload.model_dump(exclude_unset=True)
     if not changes:
         raise ProblemError(422, "validation", "Unprocessable Entity", "nothing to update")
@@ -117,16 +118,16 @@ def update_block(block_id: int, payload: BlockUpdate, session: SessionDep) -> Bl
 
 
 @router.delete("/blocks/{block_id}", status_code=204)
-def delete_block(block_id: int, session: SessionDep) -> Response:
-    load_block(session, block_id)
+def delete_block(block_id: int, session: SessionDep, user: CurrentUser) -> Response:
+    require_block(session, user, block_id, EDIT)
     session.execute(delete(Block).where(Block.id == block_id))
     session.commit()
     return Response(status_code=204)
 
 
 @router.post("/projects/{project_id}/links", response_model=LinkOut, status_code=201)
-def create_link(project_id: int, payload: LinkCreate, session: SessionDep) -> LinkOut:
-    load_project(session, project_id)
+def create_link(project_id: int, payload: LinkCreate, session: SessionDep, user: CurrentUser) -> LinkOut:
+    require_project(session, user, project_id, EDIT)
     if payload.source_block_id == payload.target_block_id:
         raise ProblemError(422, "validation", "Unprocessable Entity", "a block cannot be linked to itself")
     owned = set(

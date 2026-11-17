@@ -6,6 +6,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.db import get_engine
+from app.models import Block, HealthCheck
 
 STDERR_TAIL = """Traceback (most recent call last):
   File "/opt/pilot/main_orders.py", line 41, in <module>
@@ -69,13 +74,14 @@ def scenario(now: datetime) -> dict[str, dict[str, Any]]:
     }
 
 
-def check_ids(client: httpx.Client, project_id: int) -> dict[str, int]:
-    graph = client.get(f"/api/v1/projects/{project_id}/graph").raise_for_status().json()
-    ids = {}
-    for block in graph["blocks"]:
-        for check in client.get(f"/api/v1/blocks/{block['id']}/checks").raise_for_status().json()["checks"]:
-            ids[check["title"]] = check["id"]
-    return ids
+def check_ids(project_id: int) -> dict[str, int]:
+    with Session(get_engine()) as session:
+        rows = session.execute(
+            select(HealthCheck.name, HealthCheck.id)
+            .join(Block, Block.id == HealthCheck.block_id)
+            .where(Block.project_id == project_id, HealthCheck.name.is_not(None))
+        ).all()
+    return {str(name): check_id for name, check_id in rows}
 
 
 def push(client: httpx.Client, token: str, ids: dict[str, int]) -> int:
@@ -98,7 +104,7 @@ def main() -> None:
     project_id = int(os.environ.get("PROJECT_ID", "1"))
     once = "--once" in sys.argv
     with httpx.Client(base_url=base_url, timeout=10) as client:
-        ids = check_ids(client, project_id)
+        ids = check_ids(project_id)
         while True:
             print(f"{datetime.now(UTC):%H:%M:%S} sent {push(client, token, ids)} results", flush=True)
             if once:

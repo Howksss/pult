@@ -12,7 +12,7 @@ from app.models.audit import AuditEvent
 from app.models.base import Base
 from app.models.graph import Block, BlockKind, BlockLink, BlockScope, Project, ScopeAccess
 from app.models.health import CheckMethod, CheckResult, CheckStatus, HealthCheck
-from app.models.users import AppUser, MemberRole, ProjectMember
+from app.models.users import AppUser, MemberRole, ProjectMember, UserSession
 
 __all__ = [
     "AgentTask",
@@ -38,4 +38,5 @@ __all__ = [
     "ScopeAccess",
     "TaskMessage",
     "TaskStatus",
+    "UserSession",
 ]

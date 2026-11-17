@@ -211,3 +211,73 @@ export const defaultScopesApi: ScopesApi = {
   update: updateScope,
   remove: deleteScope,
 };
+
+export type MemberRole = "owner" | "developer" | "client";
+
+export interface MemberProject {
+  id: number;
+  name: string;
+  role: MemberRole;
+}
+
+export interface Me {
+  id: number;
+  email: string;
+  full_name: string;
+  projects: MemberProject[];
+}
+
+export interface Member {
+  user_id: number;
+  email: string;
+  full_name: string;
+  role: MemberRole;
+}
+
+export async function fetchMe(): Promise<Me | null> {
+  const response = await fetch("/api/v1/auth/me");
+  if (response.status === 401) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(await problemText(response));
+  }
+  return (await response.json()) as Me;
+}
+
+export function login(email: string, password: string): Promise<Me> {
+  return send<Me>("POST", "/api/v1/auth/login", { email, password });
+}
+
+export function register(email: string, password: string, fullName: string): Promise<Me> {
+  return send<Me>("POST", "/api/v1/auth/register", { email, password, full_name: fullName });
+}
+
+export async function logout(): Promise<void> {
+  await send<unknown>("POST", "/api/v1/auth/logout");
+}
+
+export function createProject(
+  name: string,
+  repoFullName: string,
+): Promise<MemberProject & { probe_token: string }> {
+  return send("POST", "/api/v1/projects", { name, repo_full_name: repoFullName });
+}
+
+export interface MembersApi {
+  list: (projectId: number) => Promise<Member[]>;
+  add: (projectId: number, email: string, role: MemberRole) => Promise<Member>;
+  update: (projectId: number, userId: number, role: MemberRole) => Promise<Member>;
+  remove: (projectId: number, userId: number) => Promise<void>;
+}
+
+export const defaultMembersApi: MembersApi = {
+  list: (projectId) => send<Member[]>("GET", `/api/v1/projects/${projectId}/members`),
+  add: (projectId, email, role) =>
+    send<Member>("POST", `/api/v1/projects/${projectId}/members`, { email, role }),
+  update: (projectId, userId, role) =>
+    send<Member>("PATCH", `/api/v1/projects/${projectId}/members/${userId}`, { role }),
+  remove: async (projectId, userId) => {
+    await send<unknown>("DELETE", `/api/v1/projects/${projectId}/members/${userId}`);
+  },
+};

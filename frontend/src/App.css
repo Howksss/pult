@@ -1238,3 +1238,136 @@ button.system-status:hover .system-status__arrow {
     animation: none;
   }
 }
+
+.auth {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: 24px;
+  box-sizing: border-box;
+  background: var(--bg);
+}
+
+.auth__card {
+  display: grid;
+  gap: 18px;
+  width: min(380px, 100%);
+}
+
+.auth__brand {
+  justify-self: start;
+}
+
+.auth__title {
+  margin: 8px 0 0;
+  font-size: 28px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.auth__form {
+  display: grid;
+  gap: 14px;
+}
+
+.auth__form .glass-button {
+  justify-self: start;
+  margin-top: 6px;
+}
+
+.auth__switch {
+  justify-self: start;
+}
+
+.auth__text {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.auth__token {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #08080a;
+  font:
+    14px ui-monospace,
+    "Cascadia Mono",
+    Consolas,
+    monospace;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.topbar__switch {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font: inherit;
+}
+
+.members {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 9;
+  box-sizing: border-box;
+  width: 460px;
+  display: grid;
+  gap: 14px;
+  padding: 20px 22px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--panel);
+  box-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.9);
+}
+
+.members__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.members__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 650;
+}
+
+.members__list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.members__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.members__who {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.members__name {
+  font-size: 15px;
+  font-weight: 550;
+}
+
+.members__email,
+.members__role {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 14px;
+  text-overflow: ellipsis;
+}

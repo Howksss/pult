@@ -9,13 +9,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, aliased
 
 from app import __version__
-from app.api.graph import load_block
+from app.api.access import EDIT, OPERATE, VIEW, CurrentUser, require_block
 from app.api.probe import NotifierDep
 from app.api.problems import ProblemError, not_found
 from app.api.schemas import BlockChecksOut, CheckCreate, CheckOut, CheckUpdate, HistoryPoint, ResultOut
 from app.core.config import get_settings
 from app.db import get_session
-from app.models import Block, CheckResult, HealthCheck, Project
+from app.models import AppUser, Block, CheckResult, HealthCheck, MemberRole, Project
 from app.services.check_config import internal_target, normalize_config, normalize_target
 from app.services.checks import PULL_METHODS, Guard, Outcome, run_check
 from app.services.graph_status import CheckState, check_state, check_title
@@ -90,8 +90,8 @@ def check_out(check: HealthCheck, results: list[CheckResult], now: datetime) -> 
 
 
 @router.get("/blocks/{block_id}/checks", response_model=BlockChecksOut)
-def list_block_checks(block_id: int, session: SessionDep) -> BlockChecksOut:
-    load_block(session, block_id)
+def list_block_checks(block_id: int, session: SessionDep, user: CurrentUser) -> BlockChecksOut:
+    require_block(session, user, block_id, VIEW)
     now = datetime.now(UTC)
     checks = session.scalars(
         select(HealthCheck).where(HealthCheck.block_id == block_id).order_by(HealthCheck.id)
@@ -118,10 +118,16 @@ def get_runner() -> CheckRunner:
 RunnerDep = Annotated[CheckRunner, Depends(get_runner)]
 
 
-def load_check(session: Session, check_id: int) -> HealthCheck:
+def load_check(session: Session, user: AppUser, check_id: int, roles: frozenset[MemberRole]) -> HealthCheck:
     check = session.get(HealthCheck, check_id)
     if check is None:
         raise not_found("check", check_id)
+    try:
+        require_block(session, user, check.block_id, roles)
+    except ProblemError as error:
+        if error.status == 404:
+            raise not_found("check", check_id) from error
+        raise
     return check
 
 
@@ -139,8 +145,8 @@ def fresh_out(session: Session, check: HealthCheck) -> CheckOut:
 
 
 @router.post("/blocks/{block_id}/checks", response_model=CheckOut, status_code=201)
-def create_check(block_id: int, payload: CheckCreate, session: SessionDep) -> CheckOut:
-    load_block(session, block_id)
+def create_check(block_id: int, payload: CheckCreate, session: SessionDep, user: CurrentUser) -> CheckOut:
+    require_block(session, user, block_id, EDIT)
     check = HealthCheck(block_id=block_id, **payload.model_dump())
     guard_target(check)
     session.add(check)
@@ -149,8 +155,8 @@ def create_check(block_id: int, payload: CheckCreate, session: SessionDep) -> Ch
 
 
 @router.patch("/checks/{check_id}", response_model=CheckOut)
-def update_check(check_id: int, payload: CheckUpdate, session: SessionDep) -> CheckOut:
-    check = load_check(session, check_id)
+def update_check(check_id: int, payload: CheckUpdate, session: SessionDep, user: CurrentUser) -> CheckOut:
+    check = load_check(session, user, check_id, EDIT)
     changes = payload.model_dump(exclude_unset=True)
     try:
         if "target" in changes:
@@ -170,15 +176,17 @@ def update_check(check_id: int, payload: CheckUpdate, session: SessionDep) -> Ch
 
 
 @router.delete("/checks/{check_id}", status_code=204)
-def delete_check(check_id: int, session: SessionDep) -> Response:
-    session.delete(load_check(session, check_id))
+def delete_check(check_id: int, session: SessionDep, user: CurrentUser) -> Response:
+    session.delete(load_check(session, user, check_id, EDIT))
     session.commit()
     return Response(status_code=204)
 
 
 @router.post("/checks/{check_id}/run", response_model=CheckOut)
-def run_check_now(check_id: int, session: SessionDep, runner: RunnerDep, notifier: NotifierDep) -> CheckOut:
-    check = load_check(session, check_id)
+def run_check_now(
+    check_id: int, session: SessionDep, user: CurrentUser, runner: RunnerDep, notifier: NotifierDep
+) -> CheckOut:
+    check = load_check(session, user, check_id, OPERATE)
     if check.method not in PULL_METHODS:
         raise ProblemError(
             409,
