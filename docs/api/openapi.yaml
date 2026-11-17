@@ -1014,6 +1014,19 @@ components:
           $ref: "#/components/schemas/CheckStatus"
         latency_ms:
           type: [integer, "null"]
+    TimelineBucket:
+      type: object
+      required: [start, ok, warn, fail]
+      properties:
+        start:
+          type: string
+          format: date-time
+        ok:
+          type: integer
+        warn:
+          type: integer
+        fail:
+          type: integer
     Check:
       type: object
       required:
@@ -1032,6 +1045,8 @@ components:
           error_kind,
           last,
           history,
+          timeline,
+          failing_since,
         ]
       properties:
         id:
@@ -1068,6 +1083,15 @@ components:
           maxItems: 40
           items:
             $ref: "#/components/schemas/HistoryPoint"
+        timeline:
+          type: array
+          description: 24 часовых отрезка, от старого к текущему; число результатов каждого статуса за час
+          items:
+            $ref: "#/components/schemas/TimelineBucket"
+        failing_since:
+          type: [string, "null"]
+          format: date-time
+          description: Начало текущей серии сбоев или предупреждений за последние сутки; null, если проверка в порядке
     ScopeAccess:
       type: string
       enum: [read, write]

@@ -1,6 +1,6 @@
 from collections import defaultdict
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 import httpx
@@ -12,13 +12,21 @@ from app import __version__
 from app.api.access import EDIT, OPERATE, VIEW, CurrentUser, require_block
 from app.api.probe import NotifierDep
 from app.api.problems import ProblemError, not_found
-from app.api.schemas import BlockChecksOut, CheckCreate, CheckOut, CheckUpdate, HistoryPoint, ResultOut
+from app.api.schemas import (
+    BlockChecksOut,
+    CheckCreate,
+    CheckOut,
+    CheckUpdate,
+    HistoryPoint,
+    ResultOut,
+    TimelineBucket,
+)
 from app.core.config import get_settings
 from app.db import get_session
-from app.models import AppUser, Block, CheckResult, HealthCheck, MemberRole, Project
+from app.models import AppUser, Block, CheckResult, CheckStatus, HealthCheck, MemberRole, Project
 from app.services.check_config import internal_target, normalize_config, normalize_target
 from app.services.checks import PULL_METHODS, Guard, Outcome, run_check
-from app.services.graph_status import CheckState, check_state, check_title
+from app.services.graph_status import CheckState, as_utc, check_state, check_title
 from app.services.results import NewResult, notify, record_results
 from app.services.status import SEVERITY, BlockStatus
 
@@ -27,6 +35,39 @@ router = APIRouter(prefix="/api/v1", tags=["checks"])
 SessionDep = Annotated[Session, Depends(get_session)]
 
 HISTORY_POINTS = 40
+TIMELINE_HOURS = 24
+
+
+def hour_floor(moment: datetime) -> datetime:
+    return moment.replace(minute=0, second=0, microsecond=0)
+
+
+def timelines(
+    session: Session, check_ids: list[int], now: datetime
+) -> dict[int, tuple[list[TimelineBucket], datetime | None]]:
+    since = hour_floor(now) - timedelta(hours=TIMELINE_HOURS - 1)
+    rows = session.execute(
+        select(CheckResult.health_check_id, CheckResult.checked_at, CheckResult.status)
+        .where(CheckResult.health_check_id.in_(check_ids), CheckResult.checked_at >= since)
+        .order_by(CheckResult.health_check_id, CheckResult.checked_at, CheckResult.id)
+    ).all()
+    result: dict[int, tuple[list[TimelineBucket], datetime | None]] = {}
+    for check_id in check_ids:
+        buckets = [
+            TimelineBucket(start=since + timedelta(hours=hour), ok=0, warn=0, fail=0)
+            for hour in range(TIMELINE_HOURS)
+        ]
+        streak: datetime | None = None
+        for row in (row for row in rows if row.health_check_id == check_id):
+            moment = as_utc(row.checked_at)
+            index = min(int((moment - since).total_seconds() // 3600), TIMELINE_HOURS - 1)
+            bucket = buckets[index]
+            setattr(bucket, row.status.value, getattr(bucket, row.status.value) + 1)
+            streak = None if row.status is CheckStatus.ok else streak or moment
+        result[check_id] = (buckets, streak)
+    return result
+
+
 DISABLED = CheckState(BlockStatus.unknown, "проверка выключена", None)
 
 
@@ -56,7 +97,12 @@ def recent_results(session: Session, check_ids: list[int]) -> dict[int, list[Che
     return grouped
 
 
-def check_out(check: HealthCheck, results: list[CheckResult], now: datetime) -> CheckOut:
+def check_out(
+    check: HealthCheck,
+    results: list[CheckResult],
+    now: datetime,
+    timeline: tuple[list[TimelineBucket], datetime | None],
+) -> CheckOut:
     last = results[0] if results else None
     state = check_state(check, last, now) if check.enabled else DISABLED
     return CheckOut(
@@ -86,6 +132,8 @@ def check_out(check: HealthCheck, results: list[CheckResult], now: datetime) -> 
             HistoryPoint(checked_at=row.checked_at, status=row.status, latency_ms=row.latency_ms)
             for row in reversed(results)
         ],
+        timeline=timeline[0],
+        failing_since=timeline[1] if state.status in (BlockStatus.fail, BlockStatus.warn) else None,
     )
 
 
@@ -96,8 +144,10 @@ def list_block_checks(block_id: int, session: SessionDep, user: CurrentUser) -> 
     checks = session.scalars(
         select(HealthCheck).where(HealthCheck.block_id == block_id).order_by(HealthCheck.id)
     ).all()
-    results = recent_results(session, [check.id for check in checks])
-    items = [check_out(check, results.get(check.id, []), now) for check in checks]
+    ids = [check.id for check in checks]
+    results = recent_results(session, ids)
+    lines = timelines(session, ids, now)
+    items = [check_out(check, results.get(check.id, []), now, lines[check.id]) for check in checks]
     items.sort(key=lambda item: (not item.enabled, -SEVERITY[item.status], item.id))
     return BlockChecksOut(block_id=block_id, generated_at=now, checks=items)
 
@@ -141,7 +191,9 @@ def guard_target(check: HealthCheck) -> None:
 
 
 def fresh_out(session: Session, check: HealthCheck) -> CheckOut:
-    return check_out(check, recent_results(session, [check.id]).get(check.id, []), datetime.now(UTC))
+    now = datetime.now(UTC)
+    results = recent_results(session, [check.id]).get(check.id, [])
+    return check_out(check, results, now, timelines(session, [check.id], now)[check.id])
 
 
 @router.post("/blocks/{block_id}/checks", response_model=CheckOut, status_code=201)

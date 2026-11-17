@@ -16,6 +16,14 @@ const failedRun = {
   },
 };
 
+const day = Array.from({ length: 24 }, (_, hour) => ({
+  start: new Date(Date.UTC(2026, 10, 16, 9 + hour)).toISOString(),
+  ok: hour < 22 ? 60 : 0,
+  warn: 0,
+  fail: hour >= 22 ? 60 : 0,
+}));
+day[3] = { ...day[3], ok: 0 };
+
 const failing: Check = {
   id: 3,
   title: "Автозаказ отработал",
@@ -34,6 +42,8 @@ const failing: Check = {
     { checked_at: "2026-11-17T07:58:50Z", status: "ok", latency_ms: 2900 },
     { checked_at: "2026-11-17T07:59:50Z", status: "fail", latency_ms: null },
   ],
+  timeline: day,
+  failing_since: "2026-11-17T06:10:00Z",
 };
 
 const passing: Check = {
@@ -55,6 +65,7 @@ const passing: Check = {
     details: null,
   },
   history: [],
+  failing_since: null,
 };
 
 const silent: Check = {
@@ -79,8 +90,12 @@ describe("ChecksPanel", () => {
     expect(screen.getByText("Код выхода").nextSibling).toHaveTextContent("1");
     expect(screen.getByText("Вывод stderr")).toBeInTheDocument();
     expect(
-      screen.getByRole("img", { name: "История: 2 последних результатов" }),
+      screen.getByRole("group", { name: "Последние сутки по часам: проблемы в 2 из 24 часов" }),
     ).toBeInTheDocument();
+    expect(screen.getByText(/^Сбой с \d\d:10, 1 ч 50 мин$/)).toBeInTheDocument();
+    expect(document.querySelectorAll(".timeline__bar--fail")).toHaveLength(2);
+    expect(document.querySelectorAll(".timeline__bar--empty")).toHaveLength(1);
+    expect(screen.getByText("Деление — час, высота цвета — доля проверок")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Автозаказ отработал/ })).toHaveAttribute(
       "aria-expanded",
       "true",
@@ -148,6 +163,41 @@ describe("ChecksPanel", () => {
     load.mockReturnValue(new Promise(() => undefined));
     rerender(<ChecksPanel blockId={7} refreshKey="b" api={{ ...defaultChecksApi, load: load }} />);
     expect(await screen.findByText("Загружаем проверки…")).toBeInTheDocument();
+  });
+});
+
+describe("шкала по часам", () => {
+  it("подписывает каждый час и расшифровывает час под курсором и с клавиатуры", async () => {
+    render(
+      <ChecksPanel
+        blockId={3}
+        refreshKey="a"
+        api={{ ...defaultChecksApi, load: () => Promise.resolve(payload([failing])) }}
+      />,
+    );
+    const group = await screen.findByRole("group", { name: /Последние сутки по часам/ });
+    const hours = Array.from(group.querySelectorAll("button"));
+    expect(hours).toHaveLength(24);
+    expect(hours.every((hour) => /^\d\d$/.test(hour.textContent ?? ""))).toBe(true);
+    expect(hours.filter((hour) => hour.tabIndex === 0)).toEqual([hours[23]]);
+
+    fireEvent.mouseEnter(hours[23]);
+    expect(screen.getByText(/^\d\d:00–сейчас$/)).toBeInTheDocument();
+    expect(screen.getByText("60 сбоев из 60 проверок")).toBeInTheDocument();
+    expect(group).toHaveClass("timeline__rows--focus");
+
+    fireEvent.mouseEnter(hours[3]);
+    expect(screen.getByText("проверок не было")).toBeInTheDocument();
+
+    fireEvent.mouseLeave(group);
+    expect(screen.getByText("Деление — час, высота цвета — доля проверок")).toBeInTheDocument();
+
+    hours[23].focus();
+    fireEvent.keyDown(group, { key: "ArrowLeft" });
+    expect(hours[22]).toHaveFocus();
+    expect(screen.getByText(/^\d\d:00–\d\d:00$/)).toBeInTheDocument();
+    fireEvent.keyDown(group, { key: "Enter" });
+    expect(hours[22]).toHaveFocus();
   });
 });
 

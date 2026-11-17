@@ -1,44 +1,152 @@
-import { useCallback, useEffect, useState } from "react";
+import {
+  type CSSProperties,
+  type FocusEvent,
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import {
   defaultChecksApi,
   type BlockChecks,
   type Check,
   type CheckPatch,
   type ChecksApi,
-  type HistoryPoint,
+  type TimelineBucket,
 } from "../api";
 import {
+  bucketDetails,
+  bucketRange,
+  bucketShares,
+  bucketStatus,
+  clock,
   cronLine,
   excerpt,
   facts,
   formatAgo,
   formatDuration,
+  formatSpan,
   METHOD_LABELS,
   PULL_METHODS,
 } from "../checks";
-import { STATUS_PRESENTATION } from "../status";
 import { CheckForm } from "./CheckForm";
 import { StatusDot } from "./StatusBadge";
 
-function History({ points, now }: { points: HistoryPoint[]; now: Date }) {
-  if (points.length === 0) {
+const ROW = 12;
+const STEPS: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1 };
+
+function moveFocus(event: KeyboardEvent<HTMLDivElement>) {
+  const step = STEPS[event.key];
+  if (!step) {
+    return;
+  }
+  const items = [...event.currentTarget.querySelectorAll<HTMLButtonElement>(".timeline__hour")];
+  const index = items.indexOf(document.activeElement as HTMLButtonElement);
+  items[Math.min(items.length - 1, Math.max(0, index + step))]?.focus();
+  event.preventDefault();
+}
+
+interface HourProps {
+  bucket: TimelineBucket;
+  current: boolean;
+  active: boolean;
+  tabbable: boolean;
+  onActivate: () => void;
+}
+
+function Hour({ bucket, current, active, tabbable, onActivate }: HourProps) {
+  const shares = bucketShares(bucket);
+  const style = {
+    "--fail-share": `${shares.fail}%`,
+    "--warn-share": `${shares.warn}%`,
+  } as CSSProperties;
+  const classes = ["timeline__hour"];
+  if (active) classes.push("timeline__hour--active");
+  if (current) classes.push("timeline__hour--current");
+  return (
+    <button
+      type="button"
+      className={classes.join(" ")}
+      tabIndex={tabbable ? 0 : -1}
+      aria-label={`${bucketRange(bucket.start, current)}: ${bucketDetails(bucket)}`}
+      onMouseEnter={onActivate}
+      onFocus={onActivate}
+      onClick={onActivate}
+    >
+      <span className={`timeline__bar timeline__bar--${bucketStatus(bucket)}`} style={style} />
+      <span className="timeline__hour-label">{clock(bucket.start).slice(0, 2)}</span>
+    </button>
+  );
+}
+
+function Timeline({ check, now }: { check: Check; now: Date }) {
+  const [active, setActive] = useState<number | null>(null);
+  const buckets = check.timeline;
+  if (buckets.length === 0) {
     return null;
   }
+  const last = buckets.length - 1;
+  const problems = buckets.filter((bucket) => bucket.fail + bucket.warn > 0).length;
+  const shown = active === null ? null : buckets[active];
+  const leave = (event: FocusEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      setActive(null);
+    }
+  };
   return (
-    <div
-      className="check-history"
-      role="img"
-      aria-label={`История: ${points.length} последних результатов`}
-    >
-      {points.map((point) => (
-        <span
-          key={point.checked_at}
-          className={`check-history__tick check-history__tick--${point.status}`}
-          title={`${STATUS_PRESENTATION[point.status].label}, ${formatAgo(point.checked_at, now)}${
-            point.latency_ms === null ? "" : `, ${formatDuration(point.latency_ms)}`
-          }`}
-        />
-      ))}
+    <div className="timeline">
+      {check.failing_since && (
+        <p className="timeline__since">
+          {check.status === "warn" ? "Предупреждение" : "Сбой"} с {clock(check.failing_since)},{" "}
+          {formatSpan((now.getTime() - new Date(check.failing_since).getTime()) / 1000)}
+        </p>
+      )}
+      <div
+        className={`timeline__rows${active === null ? "" : " timeline__rows--focus"}`}
+        role="group"
+        aria-label={`Последние сутки по часам: проблемы в ${problems} из ${buckets.length} часов`}
+        onMouseLeave={() => setActive(null)}
+        onBlur={leave}
+        onKeyDown={moveFocus}
+      >
+        {[0, ROW].map((offset) => (
+          <div key={offset} className="timeline__row">
+            {buckets.slice(offset, offset + ROW).map((bucket, position) => {
+              const index = offset + position;
+              return (
+                <Hour
+                  key={bucket.start}
+                  bucket={bucket}
+                  current={index === last}
+                  active={index === active}
+                  tabbable={index === (active ?? last)}
+                  onActivate={() => setActive(index)}
+                />
+              );
+            })}
+          </div>
+        ))}
+      </div>
+      <div className="timeline__readout" aria-live="polite">
+        {shown ? (
+          <>
+            <span className="timeline__range">{bucketRange(shown.start, active === last)}</span>
+            <span>{bucketDetails(shown)}</span>
+          </>
+        ) : (
+          <>
+            <span className="timeline__legend">
+              <span className="timeline__swatch timeline__swatch--fail" />
+              сбой
+              <span className="timeline__swatch timeline__swatch--warn" />
+              предупреждение
+              <span className="timeline__swatch timeline__swatch--ok" />
+              норма
+            </span>
+            <span>Деление — час, высота цвета — доля проверок</span>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -136,7 +244,7 @@ export function CheckItem({ check, now, api, onChanged }: CheckItemProps) {
               <pre>{quote.text}</pre>
             </figure>
           )}
-          <History points={check.history} now={now} />
+          <Timeline check={check} now={now} />
           {!pull && (
             <figure className="check__excerpt">
               <figcaption>Строка для cron на сервере</figcaption>

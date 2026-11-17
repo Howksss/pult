@@ -47,6 +47,13 @@ export interface HistoryPoint {
   latency_ms: number | null;
 }
 
+export interface TimelineBucket {
+  start: string;
+  ok: number;
+  warn: number;
+  fail: number;
+}
+
 export interface Check {
   id: number;
   title: string;
@@ -62,6 +69,8 @@ export interface Check {
   error_kind: string | null;
   last: CheckResult | null;
   history: HistoryPoint[];
+  timeline: TimelineBucket[];
+  failing_since: string | null;
 }
 
 export interface BlockChecks {

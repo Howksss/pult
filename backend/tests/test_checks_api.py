@@ -211,3 +211,51 @@ def test_default_runner_uses_guard(monkeypatch):
     check = HealthCheck(method=CheckMethod.http, target="https://pos.example")
     assert runner(check).status is CheckStatus.ok
     assert seen["guard"].allow_private is False
+
+
+def test_timeline_counts_results_per_hour_and_finds_failure_start(client, block_id, db):
+    from datetime import UTC, datetime, timedelta
+
+    from app.api.checks import hour_floor
+
+    check_id = create(client, block_id, method="tcp", target="db.example:5432").json()["id"]
+    now = datetime.now(UTC)
+    current = hour_floor(now)
+    rows = [
+        (current - timedelta(hours=30), CheckStatus.fail),
+        (current - timedelta(hours=5, minutes=-10), CheckStatus.ok),
+        (current - timedelta(hours=5, minutes=-20), CheckStatus.warn),
+        (current - timedelta(hours=2, minutes=-5), CheckStatus.ok),
+        (current - timedelta(hours=2, minutes=-15), CheckStatus.fail),
+        (current - timedelta(hours=1, minutes=-15), CheckStatus.fail),
+        (max(now - timedelta(seconds=5), current), CheckStatus.fail),
+    ]
+    with db() as session:
+        session.add_all(
+            CheckResult(health_check_id=check_id, checked_at=moment, status=status) for moment, status in rows
+        )
+        session.commit()
+    [check] = call(client, "GET", CHECKS, 200, block_id=block_id).json()["checks"]
+    timeline = check["timeline"]
+    assert len(timeline) == 24
+    assert datetime.fromisoformat(timeline[-1]["start"]) == current
+    counts = {
+        23 - index: (b["ok"], b["warn"], b["fail"])
+        for index, b in enumerate(timeline)
+        if b["ok"] or b["warn"] or b["fail"]
+    }
+    assert counts == {5: (1, 1, 0), 2: (1, 0, 1), 1: (0, 0, 1), 0: (0, 0, 1)}
+    assert datetime.fromisoformat(check["failing_since"]) == current - timedelta(hours=2, minutes=-15)
+
+
+def test_healthy_check_has_no_failure_start(client, block_id, db):
+    from datetime import UTC, datetime
+
+    check_id = create(client, block_id, method="tcp", target="db.example:5432").json()["id"]
+    with db() as session:
+        session.add(
+            CheckResult(health_check_id=check_id, checked_at=datetime.now(UTC), status=CheckStatus.ok)
+        )
+        session.commit()
+    [check] = call(client, "GET", CHECKS, 200, block_id=block_id).json()["checks"]
+    assert check["failing_since"] is None
