@@ -112,6 +112,13 @@ class HistoryPoint(BaseModel):
     latency_ms: int | None
 
 
+class TimelineBucket(BaseModel):
+    start: datetime
+    ok: int
+    warn: int
+    fail: int
+
+
 class CheckOut(BaseModel):
     id: int
     title: str
@@ -127,6 +134,8 @@ class CheckOut(BaseModel):
     error_kind: str | None
     last: ResultOut | None
     history: list[HistoryPoint]
+    timeline: list[TimelineBucket]
+    failing_since: datetime | None
 
 
 class BlockChecksOut(BaseModel):

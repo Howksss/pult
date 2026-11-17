@@ -22,6 +22,8 @@ const existing: Check = {
   error_kind: null,
   last: null,
   history: [],
+  timeline: [],
+  failing_since: null,
 };
 
 describe("CheckForm", () => {

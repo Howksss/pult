@@ -1,4 +1,4 @@
-import type { CheckMethod } from "./api";
+import type { CheckMethod, TimelineBucket } from "./api";
 
 export const METHOD_LABELS: Record<CheckMethod, string> = {
   http: "HTTP",
@@ -53,6 +53,60 @@ export function formatDuration(ms: number): string {
   const minutes = Math.floor(ms / 60_000);
   const rest = Math.round((ms % 60_000) / 1000);
   return rest ? `${minutes} мин ${rest} с` : `${minutes} мин`;
+}
+
+export function formatSpan(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 1) {
+    return "меньше минуты";
+  }
+  if (minutes < 60) {
+    return `${minutes} мин`;
+  }
+  if (minutes < 1440) {
+    const rest = minutes % 60;
+    return rest ? `${Math.floor(minutes / 60)} ч ${rest} мин` : `${Math.floor(minutes / 60)} ч`;
+  }
+  return "больше суток";
+}
+
+export function bucketStatus(bucket: Omit<TimelineBucket, "start">): string {
+  if (bucket.fail > 0) return "fail";
+  if (bucket.warn > 0) return "warn";
+  return bucket.ok > 0 ? "ok" : "empty";
+}
+
+const MIN_SHARE = 15;
+
+export function bucketShares(bucket: Omit<TimelineBucket, "start">): {
+  fail: number;
+  warn: number;
+} {
+  const total = bucket.ok + bucket.warn + bucket.fail;
+  const share = (count: number) =>
+    count ? Math.max(MIN_SHARE, Math.round((count / total) * 100)) : 0;
+  const fail = share(bucket.fail);
+  return { fail, warn: Math.min(share(bucket.warn), 100 - fail) };
+}
+
+export function bucketTitle(bucket: TimelineBucket): string {
+  const hour = clock(bucket.start);
+  const total = bucket.ok + bucket.warn + bucket.fail;
+  if (total === 0) {
+    return `${hour}: результатов нет`;
+  }
+  const parts = [`${hour}: ${total} ${plural(total, ["результат", "результата", "результатов"])}`];
+  if (bucket.fail) {
+    parts.push(`сбоев ${bucket.fail}`);
+  }
+  if (bucket.warn) {
+    parts.push(`предупреждений ${bucket.warn}`);
+  }
+  return parts.join(", ");
+}
+
+export function clock(iso: string): string {
+  return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
 
 export function formatAgo(iso: string, now: Date): string {

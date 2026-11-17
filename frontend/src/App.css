@@ -1106,27 +1106,6 @@ button.system-status:hover .system-status__arrow {
   scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
 }
 
-.check-history {
-  display: flex;
-  gap: 2px;
-  height: 18px;
-}
-
-.check-history__tick {
-  flex: 1;
-  max-width: 6px;
-  border-radius: 2px;
-  background: var(--ok);
-}
-
-.check-history__tick--warn {
-  background: var(--warn);
-}
-
-.check-history__tick--fail {
-  background: var(--fail);
-}
-
 .inspector__agent {
   display: grid;
   gap: 12px;
@@ -1370,4 +1349,52 @@ button.system-status:hover .system-status__arrow {
   color: var(--text-muted);
   font-size: 14px;
   text-overflow: ellipsis;
+}
+
+.timeline {
+  display: grid;
+  gap: 6px;
+}
+
+.timeline__since {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.timeline__bars,
+.timeline__labels {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.timeline__bar {
+  --fail-share: 0%;
+  --warn-share: 0%;
+  height: 22px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.timeline__bar--ok,
+.timeline__bar--warn,
+.timeline__bar--fail {
+  background: linear-gradient(
+    to top,
+    var(--fail) 0 var(--fail-share),
+    var(--warn) var(--fail-share) calc(var(--fail-share) + var(--warn-share)),
+    var(--ok) calc(var(--fail-share) + var(--warn-share)) 100%
+  );
+}
+
+.timeline__labels {
+  color: var(--text-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.timeline__labels span:last-child {
+  justify-self: end;
 }

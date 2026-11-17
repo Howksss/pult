@@ -1,44 +1,77 @@
-import { useCallback, useEffect, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useState } from "react";
 import {
   defaultChecksApi,
   type BlockChecks,
   type Check,
   type CheckPatch,
   type ChecksApi,
-  type HistoryPoint,
 } from "../api";
 import {
+  bucketShares,
+  bucketStatus,
+  bucketTitle,
+  clock,
   cronLine,
   excerpt,
   facts,
   formatAgo,
   formatDuration,
+  formatSpan,
   METHOD_LABELS,
   PULL_METHODS,
 } from "../checks";
-import { STATUS_PRESENTATION } from "../status";
 import { CheckForm } from "./CheckForm";
 import { StatusDot } from "./StatusBadge";
 
-function History({ points, now }: { points: HistoryPoint[]; now: Date }) {
-  if (points.length === 0) {
+const LABEL_EVERY = 6;
+
+function hourLabel(index: number, total: number, start: string): string {
+  if (index === total - 1) {
+    return "сейчас";
+  }
+  return index % LABEL_EVERY === 0 ? clock(start) : "";
+}
+
+function Timeline({ check, now }: { check: Check; now: Date }) {
+  const buckets = check.timeline;
+  if (buckets.length === 0) {
     return null;
   }
+  const problems = buckets.filter((bucket) => bucket.fail + bucket.warn > 0).length;
   return (
-    <div
-      className="check-history"
-      role="img"
-      aria-label={`История: ${points.length} последних результатов`}
-    >
-      {points.map((point) => (
-        <span
-          key={point.checked_at}
-          className={`check-history__tick check-history__tick--${point.status}`}
-          title={`${STATUS_PRESENTATION[point.status].label}, ${formatAgo(point.checked_at, now)}${
-            point.latency_ms === null ? "" : `, ${formatDuration(point.latency_ms)}`
-          }`}
-        />
-      ))}
+    <div className="timeline">
+      {check.failing_since && (
+        <p className="timeline__since">
+          {check.status === "warn" ? "Предупреждение" : "Сбой"} с {clock(check.failing_since)},{" "}
+          {formatSpan((now.getTime() - new Date(check.failing_since).getTime()) / 1000)}
+        </p>
+      )}
+      <div
+        className="timeline__bars"
+        role="img"
+        aria-label={`Последние сутки по часам: проблемы в ${problems} из ${buckets.length} часов`}
+      >
+        {buckets.map((bucket) => {
+          const shares = bucketShares(bucket);
+          const style = {
+            "--fail-share": `${shares.fail}%`,
+            "--warn-share": `${shares.warn}%`,
+          } as CSSProperties;
+          return (
+            <span
+              key={bucket.start}
+              className={`timeline__bar timeline__bar--${bucketStatus(bucket)}`}
+              style={style}
+              title={bucketTitle(bucket)}
+            />
+          );
+        })}
+      </div>
+      <div className="timeline__labels" aria-hidden="true">
+        {buckets.map((bucket, index) => (
+          <span key={bucket.start}>{hourLabel(index, buckets.length, bucket.start)}</span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -136,7 +169,7 @@ export function CheckItem({ check, now, api, onChanged }: CheckItemProps) {
               <pre>{quote.text}</pre>
             </figure>
           )}
-          <History points={check.history} now={now} />
+          <Timeline check={check} now={now} />
           {!pull && (
             <figure className="check__excerpt">
               <figcaption>Строка для cron на сервере</figcaption>

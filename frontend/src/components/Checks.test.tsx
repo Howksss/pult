@@ -16,6 +16,14 @@ const failedRun = {
   },
 };
 
+const day = Array.from({ length: 24 }, (_, hour) => ({
+  start: new Date(Date.UTC(2026, 10, 16, 9 + hour)).toISOString(),
+  ok: hour < 22 ? 60 : 0,
+  warn: 0,
+  fail: hour >= 22 ? 60 : 0,
+}));
+day[3] = { ...day[3], ok: 0 };
+
 const failing: Check = {
   id: 3,
   title: "Автозаказ отработал",
@@ -34,6 +42,8 @@ const failing: Check = {
     { checked_at: "2026-11-17T07:58:50Z", status: "ok", latency_ms: 2900 },
     { checked_at: "2026-11-17T07:59:50Z", status: "fail", latency_ms: null },
   ],
+  timeline: day,
+  failing_since: "2026-11-17T06:10:00Z",
 };
 
 const passing: Check = {
@@ -55,6 +65,7 @@ const passing: Check = {
     details: null,
   },
   history: [],
+  failing_since: null,
 };
 
 const silent: Check = {
@@ -79,8 +90,12 @@ describe("ChecksPanel", () => {
     expect(screen.getByText("Код выхода").nextSibling).toHaveTextContent("1");
     expect(screen.getByText("Вывод stderr")).toBeInTheDocument();
     expect(
-      screen.getByRole("img", { name: "История: 2 последних результатов" }),
+      screen.getByRole("img", { name: "Последние сутки по часам: проблемы в 2 из 24 часов" }),
     ).toBeInTheDocument();
+    expect(screen.getByText(/^Сбой с \d\d:10, 1 ч 50 мин$/)).toBeInTheDocument();
+    expect(screen.getByText("сейчас")).toBeInTheDocument();
+    expect(document.querySelectorAll(".timeline__bar--fail")).toHaveLength(2);
+    expect(document.querySelectorAll(".timeline__bar--empty")).toHaveLength(1);
     expect(screen.getByRole("button", { name: /Автозаказ отработал/ })).toHaveAttribute(
       "aria-expanded",
       "true",

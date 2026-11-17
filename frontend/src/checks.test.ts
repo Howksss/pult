@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  bucketShares,
+  bucketStatus,
+  bucketTitle,
   buildConfig,
   checksCount,
   cronLine,
@@ -7,6 +10,7 @@ import {
   facts,
   formatAgo,
   formatDuration,
+  formatSpan,
   plural,
 } from "./checks";
 
@@ -151,5 +155,41 @@ describe("buildConfig и cronLine", () => {
       `pult-run 9 sh -c '! grep -q "ConfigError" /var/log/app.log'`,
     );
     expect(cronLine({ id: 1, method: "heartbeat", target: "cron" })).toBe("pult-run 1 true");
+  });
+});
+
+describe("шкала по часам", () => {
+  it("цвет часа по худшему результату", () => {
+    expect(bucketStatus({ ok: 50, warn: 1, fail: 1 })).toBe("fail");
+    expect(bucketStatus({ ok: 50, warn: 2, fail: 0 })).toBe("warn");
+    expect(bucketStatus({ ok: 60, warn: 0, fail: 0 })).toBe("ok");
+    expect(bucketStatus({ ok: 0, warn: 0, fail: 0 })).toBe("empty");
+  });
+
+  it("доля сбоев и предупреждений в высоте деления", () => {
+    expect(bucketShares({ ok: 0, warn: 0, fail: 0 })).toEqual({ fail: 0, warn: 0 });
+    expect(bucketShares({ ok: 60, warn: 0, fail: 0 })).toEqual({ fail: 0, warn: 0 });
+    expect(bucketShares({ ok: 59, warn: 1, fail: 0 })).toEqual({ fail: 0, warn: 15 });
+    expect(bucketShares({ ok: 30, warn: 0, fail: 30 })).toEqual({ fail: 50, warn: 0 });
+    expect(bucketShares({ ok: 0, warn: 1, fail: 59 })).toEqual({ fail: 98, warn: 2 });
+  });
+
+  it("подсказка часа", () => {
+    const start = "2026-11-17T06:00:00Z";
+    expect(bucketTitle({ start, ok: 0, warn: 0, fail: 0 })).toMatch(/^\d\d:00: результатов нет$/);
+    expect(bucketTitle({ start, ok: 0, warn: 0, fail: 1 })).toMatch(/: 1 результат, сбоев 1$/);
+    expect(bucketTitle({ start, ok: 55, warn: 2, fail: 3 })).toMatch(
+      /: 60 результатов, сбоев 3, предупреждений 2$/,
+    );
+  });
+
+  it.each([
+    [20, "меньше минуты"],
+    [600, "10 мин"],
+    [7200, "2 ч"],
+    [6600, "1 ч 50 мин"],
+    [90_000, "больше суток"],
+  ])("длительность %i с — %s", (seconds, text) => {
+    expect(formatSpan(seconds)).toBe(text);
   });
 });
