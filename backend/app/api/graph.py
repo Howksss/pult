@@ -63,7 +63,7 @@ def commit_or_conflict(session: Session, detail: str) -> None:
 
 @router.get("/projects/{project_id}/graph", response_model=GraphOut)
 def get_graph(project_id: int, session: SessionDep) -> GraphOut:
-    load_project(session, project_id)
+    project = load_project(session, project_id)
     now = datetime.now(UTC)
     blocks = session.scalars(select(Block).where(Block.project_id == project_id).order_by(Block.id)).all()
     statuses = block_statuses(session, [block.id for block in blocks], now)
@@ -75,6 +75,7 @@ def get_graph(project_id: int, session: SessionDep) -> GraphOut:
     ).all()
     return GraphOut(
         project_id=project_id,
+        project_name=project.name,
         generated_at=now,
         blocks=[block_out(block, statuses[block.id]) for block in blocks],
         links=[link_out(link) for link in links],

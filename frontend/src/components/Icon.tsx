@@ -11,15 +11,10 @@ export type IconName =
   | "arrowLeft"
   | "arrowRight"
   | "lock"
-  | "send"
-  | "agent"
-  | "sun"
-  | "moon"
   | "loader"
   | "zoomIn"
   | "zoomOut"
-  | "fit"
-  | "brand";
+  | "fit";
 
 const SHAPES: Record<IconName, ReactElement> = {
   server: (
@@ -228,71 +223,6 @@ const SHAPES: Record<IconName, ReactElement> = {
       />
     </>
   ),
-  send: (
-    <>
-      <path
-        d="M7.40018 6.31991L15.8902 3.48991C19.7002 2.21991 21.7702 4.29991 20.5102 8.10991L17.6802 16.5999C15.7802 22.3099 12.6602 22.3099 10.7602 16.5999L9.92018 14.0799L7.40018 13.2399C1.69018 11.3399 1.69018 8.22991 7.40018 6.31991Z"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        stroke="currentColor"
-      />
-      <path
-        d="M10.1099 13.6501L13.6899 10.0601"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        stroke="currentColor"
-      />
-    </>
-  ),
-  agent: (
-    <>
-      <path
-        d="M17.29 4.13999L17.22 7.92997C17.21 8.44997 17.54 9.13999 17.96 9.44999L20.44 11.33C22.03 12.53 21.77 14 19.87 14.6L16.64 15.61C16.1 15.78 15.53 16.37 15.39 16.92L14.62 19.86C14.01 22.18 12.49 22.41 11.23 20.37L9.46999 17.52C9.14999 17 8.39 16.61 7.79 16.64L4.45003 16.81C2.06003 16.93 1.38002 15.55 2.94002 13.73L4.92 11.43C5.29 11 5.46 10.2 5.29 9.65998L4.28005 6.42997C3.69005 4.52997 4.75004 3.47999 6.64004 4.09999L9.59005 5.06999C10.09 5.22999 10.84 5.11998 11.26 4.80998L14.34 2.58998C16 1.38998 17.33 2.08999 17.29 4.13999Z"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        stroke="currentColor"
-      />
-      <path
-        d="M21.91 22L18.88 18.97"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        stroke="currentColor"
-      />
-    </>
-  ),
-  sun: (
-    <>
-      <path
-        d="M18.5 12C18.5 15.5899 15.5899 18.5 12 18.5C8.41015 18.5 5.5 15.5899 5.5 12C5.5 8.41015 8.41015 5.5 12 5.5C15.5899 5.5 18.5 8.41015 18.5 12Z"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        stroke="currentColor"
-      />
-      <path
-        d="M19.14 19.14L19.01 19.01M19.01 4.99L19.14 4.86L19.01 4.99ZM4.86 19.14L4.99 19.01L4.86 19.14ZM12 2.08V2V2.08ZM12 22V21.92V22ZM2.08 12H2H2.08ZM22 12H21.92H22ZM4.99 4.99L4.86 4.86L4.99 4.99Z"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        stroke="currentColor"
-      />
-    </>
-  ),
-  moon: (
-    <>
-      <path
-        d="M2.03009 12.42C2.39009 17.57 6.76009 21.76 11.9901 21.99C15.6801 22.15 18.9801 20.43 20.9601 17.72C21.7801 16.61 21.3401 15.87 19.9701 16.12C19.3001 16.24 18.6101 16.29 17.8901 16.26C13.0001 16.06 9.00009 11.97 8.98009 7.14002C8.97009 5.84002 9.24009 4.61002 9.73009 3.49002C10.2701 2.25002 9.62009 1.66002 8.37009 2.19002C4.41009 3.86002 1.70009 7.85002 2.03009 12.42Z"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        stroke="currentColor"
-      />
-    </>
-  ),
   loader: (
     <>
       <path
@@ -372,41 +302,6 @@ const SHAPES: Record<IconName, ReactElement> = {
       />
       <path
         d="M10.5 13.5L3 21"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        stroke="currentColor"
-      />
-    </>
-  ),
-  brand: (
-    <>
-      <path
-        d="M8.96997 5.5C8.96997 7.433 7.40297 9 5.46997 9C3.53697 9 1.96997 7.433 1.96997 5.5C1.96997 3.567 3.53697 2 5.46997 2C7.40297 2 8.96997 3.567 8.96997 5.5Z"
-        strokeWidth="1.5"
-        stroke="currentColor"
-      />
-      <path
-        d="M16.97 15H19.97C21.07 15 21.97 15.9 21.97 17V20C21.97 21.1 21.07 22 19.97 22H16.97C15.87 22 14.97 21.1 14.97 20V17C14.97 15.9 15.87 15 16.97 15Z"
-        strokeWidth="1.5"
-        stroke="currentColor"
-      />
-      <path
-        d="M11.9999 5H14.6799C16.5299 5 17.3899 7.29 15.9999 8.51L8.00995 15.5C6.61995 16.71 7.47994 19 9.31994 19H11.9999"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        stroke="currentColor"
-      />
-      <path
-        d="M5.48622 5.5H5.49777"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        stroke="currentColor"
-      />
-      <path
-        d="M18.4862 18.5H18.4978"
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"

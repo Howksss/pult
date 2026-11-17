@@ -21,6 +21,7 @@ export interface Link {
 
 export interface Graph {
   project_id: number;
+  project_name: string;
   generated_at: string;
   blocks: Block[];
   links: Link[];

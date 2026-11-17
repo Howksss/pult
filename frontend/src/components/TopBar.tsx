@@ -1,11 +1,14 @@
 import type { Summary } from "../graph";
-import { STATUS_COLORS, type BlockStatus } from "../status";
-import type { Theme } from "../theme";
+import type { BlockStatus } from "../status";
 import { Icon } from "./Icon";
-import { StatusBadge, StatusDot } from "./StatusBadge";
+import { StatusDot } from "./StatusBadge";
 
-const CHIP_ORDER: BlockStatus[] = ["fail", "warn", "unknown", "ok"];
-const BAR_ORDER: BlockStatus[] = ["ok", "unknown", "warn", "fail"];
+const TICK_ORDER: BlockStatus[] = ["fail", "warn", "unknown", "ok"];
+
+function working(ok: number, total: number): string {
+  const verb = ok % 10 === 1 && ok % 100 !== 11 ? "работает" : "работают";
+  return `${ok} из ${total} ${verb}`;
+}
 
 interface SystemStatusProps {
   summary: Summary;
@@ -15,16 +18,11 @@ interface SystemStatusProps {
 export function SystemStatus({ summary, onShowBlock }: SystemStatusProps) {
   const { status, text, blockId } = summary;
   const className = `system-status system-status--${status}`;
-  const content = (
-    <>
-      <StatusDot status={status} />
-      <span className="system-status__text">{text}</span>
-    </>
-  );
   if (blockId === null) {
     return (
       <span className={className} role="status">
-        {content}
+        <StatusDot status={status} />
+        <span className="system-status__text">{text}</span>
       </span>
     );
   }
@@ -35,83 +33,71 @@ export function SystemStatus({ summary, onShowBlock }: SystemStatusProps) {
       onClick={() => onShowBlock(blockId)}
       title="Показать блок"
     >
-      {content}
+      <StatusDot status={status} />
+      <span className="system-status__text">{text}</span>
+      <Icon name="arrowRight" size={15} className="system-status__arrow" />
     </button>
   );
 }
 
 interface TopBarProps {
   projectId: number;
+  projectName: string | null;
   counts: Record<BlockStatus, number> | null;
   summary: Summary | null;
   updatedAt: string | null;
   stale: boolean;
-  theme: Theme;
-  onToggleTheme: () => void;
   onShowBlock: (blockId: number) => void;
 }
 
 export function TopBar({
   projectId,
+  projectName,
   counts,
   summary,
   updatedAt,
   stale,
-  theme,
-  onToggleTheme,
   onShowBlock,
 }: TopBarProps) {
   const total = counts ? Object.values(counts).reduce((sum, value) => sum + value, 0) : 0;
+  const ticks = counts
+    ? TICK_ORDER.flatMap((status) => Array.from({ length: counts[status] }, () => status))
+    : [];
   return (
     <header className="topbar">
-      <div className="brand">
-        <span className="brand__mark" aria-hidden="true">
-          <Icon name="brand" size={16} />
-        </span>
-        Pult
-      </div>
-      <span className="topbar__divider" aria-hidden="true" />
-      <span className="topbar__project">Проект {projectId}</span>
+      <span className="brand">
+        <span className="visually-hidden">Pult</span>
+        <img
+          className="brand__glass"
+          src="/glass/p.webp?v=3"
+          srcSet="/glass/p@2x.webp?v=3 2x"
+          alt=""
+          aria-hidden="true"
+        />
+        <span aria-hidden="true">ult</span>
+      </span>
+      <span className="topbar__project">{projectName ?? `Проект ${projectId}`}</span>
       {counts && summary && total > 0 && (
-        <div className="health">
-          <SystemStatus summary={summary} onShowBlock={onShowBlock} />
-          <div
-            className="health__bar"
-            role="img"
-            aria-label={`Работает ${counts.ok} из ${total}`}
-            title={`Работает ${counts.ok} из ${total}`}
-          >
-            {BAR_ORDER.filter((status) => counts[status] > 0).map((status) => (
-              <span
-                key={status}
-                style={{ flexGrow: counts[status], background: STATUS_COLORS[status] }}
-              />
-            ))}
-          </div>
-          <div className="health__chips">
-            {CHIP_ORDER.filter((status) => counts[status] > 0).map((status) => (
-              <StatusBadge key={status} status={status} count={counts[status]} />
-            ))}
-          </div>
-        </div>
+        <SystemStatus summary={summary} onShowBlock={onShowBlock} />
       )}
       <span className="topbar__spacer" />
+      {counts && total > 0 && (
+        <div className="health">
+          <div className="health__ticks" role="img" aria-label={working(counts.ok, total)}>
+            {ticks.map((status, index) => (
+              <span key={index} className={`tick tick--${status}`} />
+            ))}
+          </div>
+          <span className="health__count">{working(counts.ok, total)}</span>
+        </div>
+      )}
       {updatedAt && (
         <span className={stale ? "live live--stale" : "live"}>
-          <span className="live__dot" aria-hidden="true" />
-          {stale ? "Нет связи" : "В сети"}
+          {stale && <span className="live__dot" aria-hidden="true" />}
+          {stale ? "Нет связи, данные от" : "Обновлено"}
           <span className="live__time">{new Date(updatedAt).toLocaleTimeString("ru-RU")}</span>
         </span>
       )}
-      <button
-        type="button"
-        className="icon-button"
-        onClick={onToggleTheme}
-        aria-label={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
-        title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
-      >
-        <Icon name={theme === "dark" ? "sun" : "moon"} size={17} />
-      </button>
     </header>
   );
 }

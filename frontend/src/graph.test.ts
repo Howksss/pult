@@ -13,6 +13,7 @@ import {
 
 const graph: Graph = {
   project_id: 1,
+  project_name: "Пилот",
   generated_at: "2026-10-21T08:00:00Z",
   blocks: [
     {

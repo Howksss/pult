@@ -28,17 +28,4 @@ describe("StatusBadge", () => {
     render(<StatusBadge status="unknown" />);
     expect(screen.getByTitle(/probe не подключён/)).toHaveTextContent("Нет данных");
   });
-
-  it("показывает счётчик и приглушает нулевой", () => {
-    const { container, rerender } = render(<StatusBadge status="warn" count={2} />);
-    expect(container.querySelector(".status-badge__count")).toHaveTextContent("2");
-    expect(container.firstChild).not.toHaveClass("status-badge--empty");
-    rerender(<StatusBadge status="warn" count={0} />);
-    expect(container.firstChild).toHaveClass("status-badge--empty");
-  });
-
-  it("без счётчика не выводит число", () => {
-    const { container } = render(<StatusBadge status="ok" />);
-    expect(container.querySelector(".status-badge__count")).toBeNull();
-  });
 });

@@ -11,8 +11,8 @@ export const STATUS_PRESENTATION: Record<BlockStatus, { label: string; hint: str
 };
 
 export const STATUS_COLORS: Record<BlockStatus, string> = {
-  ok: "#22c55e",
-  warn: "#f59e0b",
-  fail: "#ef4444",
-  unknown: "#8b93a7",
+  ok: "#3dd68c",
+  warn: "#ffb224",
+  fail: "#ff5a5f",
+  unknown: "#6f7178",
 };
