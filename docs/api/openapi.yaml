@@ -14,6 +14,8 @@ servers:
 tags:
   - name: graph
     description: Граф системы клиента
+  - name: checks
+    description: Проверки блока и подробности ошибок
   - name: probe
     description: Приём результатов проверок с сервера клиента
   - name: service
@@ -142,6 +144,26 @@ paths:
           description: Блок удалён
         "404":
           $ref: "#/components/responses/NotFound"
+  /api/v1/blocks/{block_id}/checks:
+    get:
+      tags: [checks]
+      operationId: listBlockChecks
+      security: []
+      summary: Проверки блока с последним результатом и историей
+      description: |
+        Проблемные проверки идут первыми, выключенные — в конце.
+        В истории до 40 последних результатов от старых к новым.
+      parameters:
+        - $ref: "#/components/parameters/BlockId"
+      responses:
+        "200":
+          description: Проверки блока
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockChecks"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/projects/{project_id}/links:
     post:
       tags: [graph]
@@ -178,6 +200,8 @@ paths:
         Пачка принимается целиком или отклоняется целиком. Если в ней есть проверка чужого проекта
         или несуществующая проверка, ответ 422 со списком таких health_check_id в errors.
         Probe должен убрать эти записи и повторить отправку остальных, иначе данные будут потеряны.
+        Задания по расписанию и heartbeat отчитываются этим же запросом одной строкой curl в cron.
+        Если такая проверка молчит дольше полутора интервалов, блок получает статус fail («пропущен запуск»).
       security:
         - probeToken: []
       requestBody:
@@ -262,9 +286,38 @@ components:
     CheckStatus:
       type: string
       enum: [ok, warn, fail]
+    CheckMethod:
+      type: string
+      enum: [heartbeat, http, log_pattern, exit_code, tls, tcp]
+      description: |
+        http, tls и tcp выполняет сам Pult. heartbeat, exit_code и log_pattern присылает сервер клиента.
+    ErrorKind:
+      type: [string, "null"]
+      pattern: "^[a-z_]{1,40}$"
+      description: |
+        Класс ошибки: timeout, dns, connection, tls, http_status, content, slow, cert_expiring,
+        cert_expired, exit_code, log_match, missed, internal.
+    Details:
+      type: [object, "null"]
+      description: |
+        Подробности результата. http — url, method, status_code, reason, latency_ms, content_type, body_excerpt;
+        tls — host, port, not_after, days_left, issuer, subject; tcp — host, port;
+        exit_code — exit_code, command, duration_ms, stderr_tail; log_pattern — pattern, lines.
     Block:
       type: object
-      required: [id, kind, name, description, x, y, status]
+      required:
+        [
+          id,
+          kind,
+          name,
+          description,
+          x,
+          y,
+          status,
+          reason,
+          checks_total,
+          checks_problem,
+        ]
       properties:
         id:
           type: integer
@@ -280,6 +333,15 @@ components:
           type: number
         status:
           $ref: "#/components/schemas/BlockStatus"
+        reason:
+          type: [string, "null"]
+          description: Причина статуса одной строкой по самой тяжёлой проблемной проверке
+        checks_total:
+          type: integer
+          minimum: 0
+        checks_problem:
+          type: integer
+          minimum: 0
     BlockCreate:
       type: object
       required: [kind, name]
@@ -375,6 +437,10 @@ components:
         message:
           type: [string, "null"]
           maxLength: 2000
+        error_kind:
+          $ref: "#/components/schemas/ErrorKind"
+        details:
+          $ref: "#/components/schemas/Details"
     ProbeBatch:
       type: object
       required: [results]
@@ -404,6 +470,101 @@ components:
                 $ref: "#/components/schemas/BlockStatus"
               current:
                 $ref: "#/components/schemas/BlockStatus"
+    CheckResult:
+      type: object
+      required: [checked_at, status, latency_ms, message, error_kind, details]
+      properties:
+        checked_at:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/CheckStatus"
+        latency_ms:
+          type: [integer, "null"]
+        message:
+          type: [string, "null"]
+        error_kind:
+          $ref: "#/components/schemas/ErrorKind"
+        details:
+          $ref: "#/components/schemas/Details"
+    HistoryPoint:
+      type: object
+      required: [checked_at, status, latency_ms]
+      properties:
+        checked_at:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/CheckStatus"
+        latency_ms:
+          type: [integer, "null"]
+    Check:
+      type: object
+      required:
+        [
+          id,
+          title,
+          name,
+          method,
+          target,
+          interval_sec,
+          timeout_sec,
+          enabled,
+          config,
+          status,
+          reason,
+          error_kind,
+          last,
+          history,
+        ]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+          description: Имя проверки, а если его нет — тип и цель
+        name:
+          type: [string, "null"]
+        method:
+          $ref: "#/components/schemas/CheckMethod"
+        target:
+          type: string
+        interval_sec:
+          type: integer
+        timeout_sec:
+          type: integer
+        enabled:
+          type: boolean
+        config:
+          type: object
+        status:
+          $ref: "#/components/schemas/BlockStatus"
+        reason:
+          type: [string, "null"]
+        error_kind:
+          $ref: "#/components/schemas/ErrorKind"
+        last:
+          oneOf:
+            - $ref: "#/components/schemas/CheckResult"
+            - type: "null"
+        history:
+          type: array
+          maxItems: 40
+          items:
+            $ref: "#/components/schemas/HistoryPoint"
+    BlockChecks:
+      type: object
+      required: [block_id, generated_at, checks]
+      properties:
+        block_id:
+          type: integer
+        generated_at:
+          type: string
+          format: date-time
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Check"
     Problem:
       type: object
       required: [type, title, status]

@@ -1,9 +1,13 @@
+import json
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models import BlockKind, CheckStatus
+from app.models import BlockKind, CheckMethod, CheckStatus
 from app.services.status import BlockStatus
+
+DETAILS_LIMIT = 8000
 
 
 class StrictModel(BaseModel):
@@ -18,6 +22,9 @@ class BlockOut(BaseModel):
     x: float
     y: float
     status: BlockStatus
+    reason: str | None
+    checks_total: int
+    checks_problem: int
 
 
 class BlockCreate(StrictModel):
@@ -62,6 +69,15 @@ class ProbeResultIn(StrictModel):
     checked_at: datetime
     latency_ms: int | None = Field(default=None, ge=0)
     message: str | None = Field(default=None, max_length=2000)
+    error_kind: str | None = Field(default=None, pattern=r"^[a-z_]{1,40}$")
+    details: dict[str, Any] | None = None
+
+    @field_validator("details")
+    @classmethod
+    def details_fit(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        if value is not None and len(json.dumps(value, ensure_ascii=False)) > DETAILS_LIMIT:
+            raise ValueError(f"details must be at most {DETAILS_LIMIT} characters of JSON")
+        return value
 
 
 class ProbeBatchIn(StrictModel):
@@ -77,3 +93,41 @@ class StatusChange(BaseModel):
 class ProbeAccepted(BaseModel):
     accepted: int
     status_changes: list[StatusChange]
+
+
+class ResultOut(BaseModel):
+    checked_at: datetime
+    status: CheckStatus
+    latency_ms: int | None
+    message: str | None
+    error_kind: str | None
+    details: dict[str, Any] | None
+
+
+class HistoryPoint(BaseModel):
+    checked_at: datetime
+    status: CheckStatus
+    latency_ms: int | None
+
+
+class CheckOut(BaseModel):
+    id: int
+    title: str
+    name: str | None
+    method: CheckMethod
+    target: str
+    interval_sec: int
+    timeout_sec: int
+    enabled: bool
+    config: dict[str, Any]
+    status: BlockStatus
+    reason: str | None
+    error_kind: str | None
+    last: ResultOut | None
+    history: list[HistoryPoint]
+
+
+class BlockChecksOut(BaseModel):
+    block_id: int
+    generated_at: datetime
+    checks: list[CheckOut]

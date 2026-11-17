@@ -8,7 +8,18 @@ const graph: Graph = {
   project_name: "Пилот",
   generated_at: "2026-10-21T08:00:00Z",
   blocks: [
-    { id: 1, kind: "server", name: "VPS", description: null, x: 0, y: 0, status: "ok" },
+    {
+      id: 1,
+      kind: "server",
+      name: "VPS",
+      description: null,
+      x: 0,
+      y: 0,
+      status: "ok",
+      reason: null,
+      checks_total: 1,
+      checks_problem: 0,
+    },
     {
       id: 2,
       kind: "scheduled_job",
@@ -17,6 +28,9 @@ const graph: Graph = {
       x: 300,
       y: 0,
       status: "ok",
+      reason: null,
+      checks_total: 1,
+      checks_problem: 0,
     },
     {
       id: 3,
@@ -26,6 +40,9 @@ const graph: Graph = {
       x: 600,
       y: 0,
       status: "fail",
+      reason: null,
+      checks_total: 1,
+      checks_problem: 0,
     },
   ],
   links: [
@@ -41,7 +58,17 @@ function renderInspector(blockId: number) {
   if (!block) {
     throw new Error(`block ${blockId} not found`);
   }
-  render(<Inspector graph={graph} block={block} onSelect={onSelect} onClose={onClose} />);
+  const loadChecks = () =>
+    Promise.resolve({ block_id: blockId, generated_at: graph.generated_at, checks: [] });
+  render(
+    <Inspector
+      graph={graph}
+      block={block}
+      onSelect={onSelect}
+      onClose={onClose}
+      loadChecks={loadChecks}
+    />,
+  );
   return { onSelect, onClose };
 }
 

@@ -7,6 +7,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from app.models import Block, BlockKind, CheckMethod, CheckResult, CheckStatus, HealthCheck, Project
+from app.services.graph_status import block_diagnoses
 from app.services.status import CheckSnapshot, block_status
 
 DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
@@ -87,3 +88,47 @@ def test_view_matches_python_service(session, scenario):
         text("select status from v_block_status where block_id = :id"), {"id": block.id}
     ).scalar_one()
     assert view_status == python_status(checks, now)
+
+
+METHOD_SCENARIOS = {
+    "job_missed": [(CheckMethod.exit_code, True, [(OK, 100)])],
+    "job_fresh_fail": [(CheckMethod.exit_code, True, [(FAIL, 30)])],
+    "heartbeat_on_time": [(CheckMethod.heartbeat, True, [(OK, 80)])],
+    "log_missed_beats_ok": [
+        (CheckMethod.log_pattern, True, [(OK, 150)]),
+        (CheckMethod.http, True, [(OK, 5)]),
+    ],
+    "disabled_fail_ignored": [(CheckMethod.http, False, [(FAIL, 5)]), (CheckMethod.http, True, [(OK, 5)])],
+    "only_disabled": [(CheckMethod.http, False, [(OK, 5)])],
+    "tls_old_is_unknown": [(CheckMethod.tls, True, [(OK, 200)])],
+    "job_never_reported": [(CheckMethod.exit_code, True, [])],
+}
+
+
+@pytest.mark.parametrize("scenario", METHOD_SCENARIOS)
+def test_view_matches_diagnoses_for_check_methods(session, scenario):
+    now = session.execute(text("select now()")).scalar_one()
+    block = Block(
+        project=Project(name="pilot", repo_full_name="example/pilot-system"),
+        kind=BlockKind.scheduled_job,
+        name="Автозаказ",
+    )
+    session.add(block)
+    session.flush()
+    for method, enabled, results in METHOD_SCENARIOS[scenario]:
+        check = HealthCheck(
+            block_id=block.id, method=method, target="main.py", interval_sec=60, enabled=enabled
+        )
+        session.add(check)
+        session.flush()
+        for status, seconds_ago in results:
+            session.add(
+                CheckResult(
+                    health_check_id=check.id, status=status, checked_at=now - timedelta(seconds=seconds_ago)
+                )
+            )
+    session.flush()
+    view_status = session.execute(
+        text("select status from v_block_status where block_id = :id"), {"id": block.id}
+    ).scalar_one()
+    assert view_status == block_diagnoses(session, [block.id], now)[block.id].status.value

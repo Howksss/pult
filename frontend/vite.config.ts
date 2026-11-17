@@ -14,7 +14,9 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: [
+        "src/checks.ts",
         "src/components/BlockNode.tsx",
+        "src/components/Checks.tsx",
         "src/components/Inspector.tsx",
         "src/components/StatusBadge.tsx",
         "src/components/TopBar.tsx",

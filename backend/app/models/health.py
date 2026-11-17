@@ -1,10 +1,11 @@
 import enum
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, Text, desc, func
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, Text, desc, func, true
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base
+from app.models.base import Base, JsonDocument
 
 
 class CheckMethod(str, enum.Enum):
@@ -12,6 +13,8 @@ class CheckMethod(str, enum.Enum):
     http = "http"
     log_pattern = "log_pattern"
     exit_code = "exit_code"
+    tls = "tls"
+    tcp = "tcp"
 
 
 class CheckStatus(str, enum.Enum):
@@ -29,6 +32,9 @@ class HealthCheck(Base):
     target: Mapped[str] = mapped_column(String(500))
     interval_sec: Mapped[int] = mapped_column(default=60)
     timeout_sec: Mapped[int] = mapped_column(default=10)
+    name: Mapped[str | None] = mapped_column(String(120))
+    config: Mapped[dict[str, Any]] = mapped_column(JsonDocument, default=dict, server_default="{}")
+    enabled: Mapped[bool] = mapped_column(default=True, server_default=true())
 
 
 class CheckResult(Base):
@@ -49,3 +55,5 @@ class CheckResult(Base):
     status: Mapped[CheckStatus] = mapped_column(Enum(CheckStatus, name="check_status"))
     latency_ms: Mapped[int | None]
     message: Mapped[str | None] = mapped_column(Text)
+    error_kind: Mapped[str | None] = mapped_column(String(40))
+    details: Mapped[dict[str, Any] | None] = mapped_column(JsonDocument)

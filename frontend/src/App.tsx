@@ -29,7 +29,7 @@ import {
 
 const PROJECT_ID = Number(new URLSearchParams(window.location.search).get("project") ?? "1");
 const REFRESH_MS = 10_000;
-const INSPECTOR_WIDTH = 396;
+const INSPECTOR_WIDTH = 436;
 const nodeTypes = { block: BlockNode };
 const edgeTypes = { flow: FlowEdge };
 

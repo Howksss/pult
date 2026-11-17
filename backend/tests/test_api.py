@@ -14,6 +14,7 @@ BLOCKS = "/api/v1/projects/{project_id}/blocks"
 BLOCK = "/api/v1/blocks/{block_id}"
 LINKS = "/api/v1/projects/{project_id}/links"
 PROBE = "/api/v1/probe/results"
+CHECKS = "/api/v1/blocks/{block_id}/checks"
 
 
 @pytest.fixture
@@ -216,3 +217,85 @@ def test_probe_accepts_naive_time_as_utc(client, pilot):
     batch = {"results": [{"health_check_id": pilot["pos_check"], "status": "warn", "checked_at": naive}]}
     body = call(client, "POST", PROBE, 202, json=batch, headers={"X-Probe-Token": TOKEN}).json()
     assert body["status_changes"][0]["current"] == "warn"
+
+
+def test_graph_explains_block_status(client, pilot):
+    graph = call(client, "GET", GRAPH, 200, project_id=pilot["project"]).json()
+    blocks = {block["name"]: block for block in graph["blocks"]}
+    assert blocks["Расчёт плана"]["reason"] == "Проверки не настроены"
+    assert (blocks["Расчёт плана"]["checks_total"], blocks["Расчёт плана"]["checks_problem"]) == (0, 0)
+    assert blocks["POS-система"]["reason"] is None
+    assert (blocks["POS-система"]["checks_total"], blocks["POS-система"]["checks_problem"]) == (1, 0)
+
+
+def test_probe_details_reach_block_checks(client, pilot):
+    batch = probe_batch(pilot["pos_check"], "fail")
+    batch["results"][0].update(
+        message="HTTP 502 Bad Gateway",
+        error_kind="http_status",
+        latency_ms=1200,
+        details={"status_code": 502, "body_excerpt": "upstream connect error"},
+    )
+    call(client, "POST", PROBE, 202, json=batch, headers={"X-Probe-Token": TOKEN})
+
+    body = call(client, "GET", CHECKS, 200, block_id=pilot["pos"]).json()
+    assert body["block_id"] == pilot["pos"]
+    [check] = body["checks"]
+    assert check["title"] == "HTTP https://pos.example"
+    assert (check["status"], check["reason"], check["error_kind"]) == (
+        "fail",
+        "HTTP 502 Bad Gateway",
+        "http_status",
+    )
+    assert check["last"]["details"] == {"status_code": 502, "body_excerpt": "upstream connect error"}
+    assert [point["status"] for point in check["history"]] == ["ok", "fail"]
+
+    graph = call(client, "GET", GRAPH, 200, project_id=pilot["project"]).json()
+    pos = next(block for block in graph["blocks"] if block["name"] == "POS-система")
+    assert pos["reason"] == "HTTP https://pos.example: HTTP 502 Bad Gateway"
+    assert pos["checks_problem"] == 1
+
+
+def test_block_checks_put_problems_first_and_disabled_last(client, pilot, db):
+    with db() as session:
+        session.add_all(
+            [
+                HealthCheck(
+                    block_id=pilot["pos"], method=CheckMethod.tls, target="pos.example", name="Сертификат"
+                ),
+                HealthCheck(
+                    block_id=pilot["pos"],
+                    method=CheckMethod.http,
+                    target="https://old.example",
+                    enabled=False,
+                ),
+            ]
+        )
+        session.commit()
+    checks = call(client, "GET", CHECKS, 200, block_id=pilot["pos"]).json()["checks"]
+    assert [(check["title"], check["status"]) for check in checks] == [
+        ("Сертификат", "unknown"),
+        ("HTTP https://pos.example", "ok"),
+        ("HTTP https://old.example", "unknown"),
+    ]
+    assert checks[0]["reason"] == "результатов ещё не было"
+    assert checks[2]["reason"] == "проверка выключена"
+    assert checks[2]["last"] is None and checks[2]["history"] == []
+
+
+def test_block_checks_of_unknown_block_is_404(client, pilot):
+    body = call(client, "GET", CHECKS, 404, block_id=999).json()
+    assert body["detail"] == "block 999 not found"
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"error_kind": "Not A Kind"},
+        {"details": {"stderr_tail": "x" * 9000}},
+    ],
+)
+def test_probe_rejects_bad_diagnostics(client, pilot, extra):
+    batch = probe_batch(pilot["pos_check"], "fail")
+    batch["results"][0].update(extra)
+    call(client, "POST", PROBE, 422, json=batch, headers={"X-Probe-Token": TOKEN})
