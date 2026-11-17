@@ -5,7 +5,7 @@ from typing import Annotated
 
 import httpx
 from fastapi import APIRouter, Depends, Response
-from sqlalchemy import func, select
+from sqlalchemy import Row, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from app import __version__
@@ -42,6 +42,47 @@ def hour_floor(moment: datetime) -> datetime:
     return moment.replace(minute=0, second=0, microsecond=0)
 
 
+def bucketize(
+    rows: list[Row[tuple[int, datetime, CheckStatus]]], since: datetime
+) -> tuple[list[TimelineBucket], datetime | None, bool]:
+    buckets = [
+        TimelineBucket(start=since + timedelta(hours=hour), ok=0, warn=0, fail=0)
+        for hour in range(TIMELINE_HOURS)
+    ]
+    streak: datetime | None = None
+    seen_ok = False
+    for row in rows:
+        moment = as_utc(row.checked_at)
+        index = min(int((moment - since).total_seconds() // 3600), TIMELINE_HOURS - 1)
+        bucket = buckets[index]
+        setattr(bucket, row.status.value, getattr(bucket, row.status.value) + 1)
+        if row.status is CheckStatus.ok:
+            streak, seen_ok = None, True
+        else:
+            streak = streak or moment
+    return buckets, streak, seen_ok
+
+
+def streak_start(session: Session, check_id: int, before: datetime) -> datetime | None:
+    last_ok = (
+        select(func.max(CheckResult.checked_at))
+        .where(
+            CheckResult.health_check_id == check_id,
+            CheckResult.status == CheckStatus.ok,
+            CheckResult.checked_at < before,
+        )
+        .scalar_subquery()
+    )
+    first = session.scalar(
+        select(func.min(CheckResult.checked_at)).where(
+            CheckResult.health_check_id == check_id,
+            CheckResult.checked_at < before,
+            or_(last_ok.is_(None), CheckResult.checked_at > last_ok),
+        )
+    )
+    return as_utc(first) if first else None
+
+
 def timelines(
     session: Session, check_ids: list[int], now: datetime
 ) -> dict[int, tuple[list[TimelineBucket], datetime | None]]:
@@ -53,17 +94,10 @@ def timelines(
     ).all()
     result: dict[int, tuple[list[TimelineBucket], datetime | None]] = {}
     for check_id in check_ids:
-        buckets = [
-            TimelineBucket(start=since + timedelta(hours=hour), ok=0, warn=0, fail=0)
-            for hour in range(TIMELINE_HOURS)
-        ]
-        streak: datetime | None = None
-        for row in (row for row in rows if row.health_check_id == check_id):
-            moment = as_utc(row.checked_at)
-            index = min(int((moment - since).total_seconds() // 3600), TIMELINE_HOURS - 1)
-            bucket = buckets[index]
-            setattr(bucket, row.status.value, getattr(bucket, row.status.value) + 1)
-            streak = None if row.status is CheckStatus.ok else streak or moment
+        own = [row for row in rows if row.health_check_id == check_id]
+        buckets, streak, seen_ok = bucketize(own, since)
+        if streak is not None and not seen_ok:
+            streak = streak_start(session, check_id, since) or streak
         result[check_id] = (buckets, streak)
     return result
 

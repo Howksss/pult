@@ -13,6 +13,7 @@ import {
   formatDuration,
   formatSpan,
   plural,
+  sinceLabel,
 } from "./checks";
 
 const NOW = new Date("2026-11-17T08:00:00Z");
@@ -187,6 +188,11 @@ describe("шкала по часам", () => {
     expect(bucketDetails(bucket)).toBe(text);
   });
 
+  it("начало сбоя: время, а если больше суток — ещё и дата", () => {
+    expect(sinceLabel("2026-11-17T06:10:00Z", NOW)).toMatch(/^\d\d:10$/);
+    expect(sinceLabel("2026-11-03T06:10:00Z", NOW)).toMatch(/^3 ноября \d\d:10$/);
+  });
+
   it("границы часа", () => {
     expect(bucketRange("2026-11-17T06:00:00Z", false)).toMatch(/^\d\d:00–\d\d:00$/);
     expect(bucketRange("2026-11-17T23:00:00Z", true)).toMatch(/^\d\d:00–сейчас$/);
@@ -197,7 +203,9 @@ describe("шкала по часам", () => {
     [600, "10 мин"],
     [7200, "2 ч"],
     [6600, "1 ч 50 мин"],
-    [90_000, "больше суток"],
+    [90_000, "1 день"],
+    [3 * 86_400, "3 дня"],
+    [12 * 86_400, "12 дней"],
   ])("длительность %i с — %s", (seconds, text) => {
     expect(formatSpan(seconds)).toBe(text);
   });

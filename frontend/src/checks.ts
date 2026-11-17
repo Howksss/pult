@@ -67,7 +67,17 @@ export function formatSpan(seconds: number): string {
     const rest = minutes % 60;
     return rest ? `${Math.floor(minutes / 60)} ч ${rest} мин` : `${Math.floor(minutes / 60)} ч`;
   }
-  return "больше суток";
+  const days = Math.floor(minutes / 1440);
+  return `${days} ${plural(days, ["день", "дня", "дней"])}`;
+}
+
+export function sinceLabel(iso: string, now: Date): string {
+  const moment = new Date(iso);
+  if (now.getTime() - moment.getTime() < 86_400_000) {
+    return clock(iso);
+  }
+  const day = moment.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+  return `${day} ${clock(iso)}`;
 }
 
 export function bucketStatus(bucket: Omit<TimelineBucket, "start">): string {
