@@ -248,6 +248,33 @@ def test_timeline_counts_results_per_hour_and_finds_failure_start(client, block_
     assert datetime.fromisoformat(check["failing_since"]) == current - timedelta(hours=2, minutes=-15)
 
 
+def test_failure_start_older_than_timeline_is_found(client, block_id, db):
+    from datetime import UTC, datetime, timedelta
+
+    now = datetime.now(UTC)
+    since_ok = create(client, block_id, method="tcp", target="db.example:5432").json()["id"]
+    never_ok = create(client, block_id, method="tcp", target="cache.example:6379").json()["id"]
+    rows = [
+        (since_ok, now - timedelta(hours=60), CheckStatus.fail),
+        (since_ok, now - timedelta(hours=50), CheckStatus.ok),
+        (since_ok, now - timedelta(hours=40), CheckStatus.warn),
+        (since_ok, now - timedelta(hours=30), CheckStatus.fail),
+        (since_ok, now - timedelta(minutes=1), CheckStatus.fail),
+        (never_ok, now - timedelta(hours=70), CheckStatus.fail),
+        (never_ok, now - timedelta(minutes=1), CheckStatus.fail),
+    ]
+    with db() as session:
+        session.add_all(
+            CheckResult(health_check_id=check_id, checked_at=moment, status=status)
+            for check_id, moment, status in rows
+        )
+        session.commit()
+    checks = {c["id"]: c for c in call(client, "GET", CHECKS, 200, block_id=block_id).json()["checks"]}
+    started = {check_id: datetime.fromisoformat(checks[check_id]["failing_since"]) for check_id in checks}
+    assert abs(started[since_ok] - (now - timedelta(hours=40))) < timedelta(seconds=1)
+    assert abs(started[never_ok] - (now - timedelta(hours=70))) < timedelta(seconds=1)
+
+
 def test_healthy_check_has_no_failure_start(client, block_id, db):
     from datetime import UTC, datetime
 
