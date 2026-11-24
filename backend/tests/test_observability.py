@@ -7,9 +7,6 @@ from sqlalchemy.exc import OperationalError
 from app.core.observability import JsonFormatter
 from app.db import get_session
 from app.main import app
-from tests.test_api import pilot
-
-__all__ = ["pilot"]
 
 
 def test_metrics_count_requests_by_route_template(client, pilot):

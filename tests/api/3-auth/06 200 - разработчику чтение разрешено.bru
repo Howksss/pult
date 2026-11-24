@@ -1,0 +1,21 @@
+meta {
+  name: 200 - разработчику чтение разрешено
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v1/blocks/{{blockId}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{developerKey}}
+}
+
+tests {
+  test("200: роль developer читает блок", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

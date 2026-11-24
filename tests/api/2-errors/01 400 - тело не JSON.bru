@@ -1,0 +1,39 @@
+meta {
+  name: 400 - тело не JSON
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/projects/{{projectId}}/blocks
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{ownerKey}}
+  Content-Type: application/vnd.pult+json
+}
+
+body:json {
+  {"kind": "bot", "name":
+}
+
+docs {
+  Bruno отправляет запросы через axios, а axios превращает невалидный JSON в JSON-строку, если тип
+  application/json. Поэтому здесь тип application/vnd.pult+json: сервер разбирает любой тип *+json как JSON,
+  а axios оставляет тело как есть. curl с application/json даёт тот же ответ 400.
+}
+
+tests {
+  test("400 и ошибка в формате RFC 9457", function () {
+    expect(res.getStatus()).to.equal(400);
+    expect(res.getHeader("content-type")).to.contain("application/problem+json");
+    const body = res.getBody();
+    expect(body).to.have.all.keys(...Object.keys(body));
+    expect(body.type).to.match(/\/bad-request$/);
+    expect(body.status).to.equal(400);
+    expect(body.title).to.be.a("string");
+    expect(body.detail).to.be.a("string");
+  });
+}

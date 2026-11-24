@@ -1,15 +1,16 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response
-from sqlalchemy import select
+from fastapi import APIRouter, Body, Depends, Query, Response
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.api.access import EDIT, VIEW, CurrentUser, require_block
 from app.api.graph import commit_or_conflict
+from app.api.paging import PageDep
 from app.api.problems import ProblemError, not_found
 from app.api.schemas import ScopeCreate, ScopeOut, ScopeUpdate
 from app.db import get_session
-from app.models import AppUser, BlockScope
+from app.models import AppUser, BlockScope, ScopeAccess
 
 router = APIRouter(prefix="/api/v1", tags=["scopes"])
 
@@ -34,12 +35,43 @@ def load_scope(session: Session, user: AppUser, scope_id: int) -> BlockScope:
 
 
 @router.get("/blocks/{block_id}/scopes", response_model=list[ScopeOut])
-def list_scopes(block_id: int, session: SessionDep, user: CurrentUser) -> list[ScopeOut]:
+def list_scopes(
+    block_id: int,
+    session: SessionDep,
+    user: CurrentUser,
+    page: PageDep,
+    access: Annotated[ScopeAccess | None, Query(description="Только пути с этим правом")] = None,
+) -> list[ScopeOut]:
     require_block(session, user, block_id, VIEW)
-    scopes = session.scalars(
-        select(BlockScope).where(BlockScope.block_id == block_id).order_by(BlockScope.path_glob)
-    ).all()
-    return [scope_out(scope) for scope in scopes]
+    query = select(BlockScope).where(BlockScope.block_id == block_id).order_by(BlockScope.path_glob)
+    if access is not None:
+        query = query.where(BlockScope.access == access)
+    return [scope_out(scope) for scope in session.scalars(page.query(session, query))]
+
+
+@router.put("/blocks/{block_id}/scopes", response_model=list[ScopeOut])
+def replace_scopes(
+    block_id: int,
+    payload: Annotated[list[ScopeCreate], Body(max_length=100)],
+    session: SessionDep,
+    user: CurrentUser,
+) -> list[ScopeOut]:
+    require_block(session, user, block_id, EDIT)
+    paths = [item.path_glob for item in payload]
+    repeated = sorted({path for path in paths if paths.count(path) > 1})
+    if repeated:
+        raise ProblemError(
+            422,
+            "validation",
+            "Unprocessable Entity",
+            "each path may appear once",
+            [{"path_glob": path, "message": "repeated"} for path in repeated],
+        )
+    session.execute(delete(BlockScope).where(BlockScope.block_id == block_id))
+    scopes = [BlockScope(block_id=block_id, path_glob=item.path_glob, access=item.access) for item in payload]
+    session.add_all(scopes)
+    session.commit()
+    return [scope_out(scope) for scope in sorted(scopes, key=lambda scope: scope.path_glob)]
 
 
 @router.post("/blocks/{block_id}/scopes", response_model=ScopeOut, status_code=201)

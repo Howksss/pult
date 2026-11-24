@@ -46,7 +46,7 @@ class HealthCheck(Base):
 class CheckResult(Base):
     __tablename__ = "check_result"
     __table_args__ = (
-        Index("ix_check_result_check_time", "health_check_id", desc("checked_at")),
+        Index("uq_check_result_check_time", "health_check_id", desc("checked_at"), unique=True),
         Index(
             "ix_check_result_checked_at_brin",
             "checked_at",

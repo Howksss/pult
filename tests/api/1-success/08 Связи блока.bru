@@ -1,0 +1,23 @@
+meta {
+  name: Связи блока
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/api/v1/projects/{{projectId}}/links?block_id={{blockId}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{ownerKey}}
+}
+
+tests {
+  test("200 и одна связь нового блока", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.lengthOf(1);
+    expect(res.getHeader("x-total-count")).to.equal("1");
+  });
+}

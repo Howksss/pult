@@ -1,0 +1,35 @@
+meta {
+  name: Соединить блоки
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/v1/projects/{{projectId}}/links
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{ownerKey}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "source_block_id": {{otherBlockId}},
+    "target_block_id": {{blockId}},
+    "label": "уведомления"
+  }
+}
+
+script:post-response {
+  bru.setVar("linkId", res.getBody().id);
+}
+
+tests {
+  test("201 и связь", function () {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.getBody()).to.include({ target_block_id: bru.getVar("blockId"), label: "уведомления" });
+  });
+}

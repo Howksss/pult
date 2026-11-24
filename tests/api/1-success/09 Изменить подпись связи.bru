@@ -1,0 +1,29 @@
+meta {
+  name: Изменить подпись связи
+  type: http
+  seq: 9
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/links/{{linkId}}
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{ownerKey}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "label": "сводка за день"
+  }
+}
+
+tests {
+  test("200 и новая подпись", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().label).to.equal("сводка за день");
+  });
+}

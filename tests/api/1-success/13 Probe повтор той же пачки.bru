@@ -1,0 +1,32 @@
+meta {
+  name: Probe: повтор той же пачки
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{baseUrl}}/api/v1/probe/results
+  body: json
+  auth: none
+}
+
+headers {
+  X-Probe-Token: {{probeToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "results": [
+      { "health_check_id": {{posCheckId}}, "status": "ok", "checked_at": "{{probeTime}}", "latency_ms": 120 }
+    ]
+  }
+}
+
+tests {
+  test("202, дубликат не записан", function () {
+    expect(res.getStatus()).to.equal(202);
+    expect(res.getBody()).to.include({ accepted: 0, duplicates: 1 });
+    expect(res.getBody().status_changes).to.be.empty;
+  });
+}

@@ -1,0 +1,32 @@
+meta {
+  name: Список блоков с фильтрами
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v1/projects/{{projectId}}/blocks?kind=bot&q=bruno
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{ownerKey}}
+}
+
+script:post-response {
+  bru.setVar("otherBlockId", 1);
+}
+
+tests {
+  test("200, только боты с bruno в имени", function () {
+    expect(res.getStatus()).to.equal(200);
+    const blocks = res.getBody();
+    expect(blocks.map((block) => block.id)).to.include(bru.getVar("blockId"));
+    blocks.forEach((block) => {
+      expect(block.kind).to.equal("bot");
+      expect(block.name.toLowerCase()).to.contain("bruno");
+    });
+    expect(Number(res.getHeader("x-total-count"))).to.equal(blocks.length);
+  });
+}

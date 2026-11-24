@@ -1,0 +1,36 @@
+meta {
+  name: 401 - probe без токена
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/probe/results
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "results": [
+      { "health_check_id": {{posCheckId}}, "status": "ok", "checked_at": "2026-11-24T00:00:00Z" }
+    ]
+  }
+}
+
+tests {
+  test("401 и ошибка в формате RFC 9457", function () {
+    expect(res.getStatus()).to.equal(401);
+    expect(res.getHeader("content-type")).to.contain("application/problem+json");
+    const body = res.getBody();
+    expect(body).to.have.all.keys(...Object.keys(body));
+    expect(body.type).to.match(/\/unauthorized$/);
+    expect(body.status).to.equal(401);
+    expect(body.title).to.be.a("string");
+    expect(body.detail).to.be.a("string");
+  });
+}

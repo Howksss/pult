@@ -51,6 +51,10 @@ class LinkOut(BaseModel):
     label: str | None
 
 
+class LinkUpdate(StrictModel):
+    label: str | None = Field(max_length=100)
+
+
 class LinkCreate(StrictModel):
     source_block_id: int
     target_block_id: int
@@ -94,6 +98,7 @@ class StatusChange(BaseModel):
 
 class ProbeAccepted(BaseModel):
     accepted: int
+    duplicates: int
     status_changes: list[StatusChange]
 
 
@@ -245,6 +250,25 @@ class ProjectCreated(MemberProject):
     probe_token: str
 
 
+class ProjectOut(MemberProject):
+    description: str | None
+    repo_full_name: str
+    default_branch: str
+    created_at: datetime
+
+
+class ProjectUpdate(StrictModel):
+    name: str | None = Field(default=None, min_length=1, max_length=150)
+    description: str | None = None
+    default_branch: str | None = Field(default=None, min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def not_empty(self) -> "ProjectUpdate":
+        if not self.model_fields_set:
+            raise ValueError("нужно передать хотя бы одно поле")
+        return self
+
+
 class MemberOut(BaseModel):
     user_id: int
     email: str
@@ -264,3 +288,21 @@ class MemberAdd(StrictModel):
 
 class MemberUpdate(StrictModel):
     role: MemberRole
+
+
+class ApiKeyCreate(StrictModel):
+    name: str = Field(min_length=1, max_length=100)
+    expires_in_days: int = Field(default=90, ge=1, le=365)
+
+
+class ApiKeyOut(BaseModel):
+    id: int
+    name: str
+    prefix: str
+    created_at: datetime
+    expires_at: datetime
+    last_used_at: datetime | None
+
+
+class ApiKeyCreated(ApiKeyOut):
+    key: str

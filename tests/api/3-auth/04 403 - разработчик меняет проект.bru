@@ -1,0 +1,35 @@
+meta {
+  name: 403 - разработчик меняет проект
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/projects/{{projectId}}
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{developerKey}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Захват"
+  }
+}
+
+tests {
+  test("403 и ошибка в формате RFC 9457", function () {
+    expect(res.getStatus()).to.equal(403);
+    expect(res.getHeader("content-type")).to.contain("application/problem+json");
+    const body = res.getBody();
+    expect(body).to.have.all.keys(...Object.keys(body));
+    expect(body.type).to.match(/\/forbidden$/);
+    expect(body.status).to.equal(403);
+    expect(body.title).to.be.a("string");
+    expect(body.detail).to.be.a("string");
+  });
+}

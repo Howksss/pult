@@ -1,0 +1,39 @@
+meta {
+  name: 422 - блок без имени
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/projects/{{projectId}}/blocks
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{ownerKey}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "kind": "bot"
+  }
+}
+
+tests {
+  test("422 и ошибка в формате RFC 9457", function () {
+    expect(res.getStatus()).to.equal(422);
+    expect(res.getHeader("content-type")).to.contain("application/problem+json");
+    const body = res.getBody();
+    expect(body).to.have.all.keys(...Object.keys(body));
+    expect(body.type).to.match(/\/validation$/);
+    expect(body.status).to.equal(422);
+    expect(body.title).to.be.a("string");
+    expect(body.detail).to.be.a("string");
+  });
+
+  test("в errors указано поле name", function () {
+    expect(res.getBody().errors.map((error) => error.location)).to.include("body.name");
+  });
+}

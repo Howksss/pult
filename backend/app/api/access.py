@@ -1,12 +1,13 @@
 from typing import Annotated
 
-from fastapi import Cookie, Depends
+from fastapi import Cookie, Depends, Header
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.problems import ProblemError, not_found
 from app.db import get_session
 from app.models import AppUser, Block, MemberRole, Project, ProjectMember
+from app.services.api_keys import user_by_api_key
 from app.services.auth import user_by_token
 
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -17,10 +18,19 @@ OPERATE = frozenset({MemberRole.owner, MemberRole.developer})
 
 
 def unauthenticated() -> ProblemError:
-    return ProblemError(401, "unauthenticated", "Unauthorized", "sign in first")
+    return ProblemError(401, "unauthenticated", "Unauthorized", "sign in or pass X-API-Key")
 
 
-def current_user(session: SessionDep, pult_session: Annotated[str | None, Cookie()] = None) -> AppUser:
+def current_user(
+    session: SessionDep,
+    pult_session: Annotated[str | None, Cookie()] = None,
+    x_api_key: Annotated[str | None, Header()] = None,
+) -> AppUser:
+    if x_api_key is not None:
+        user = user_by_api_key(session, x_api_key)
+        if user is None:
+            raise ProblemError(401, "unauthenticated", "Unauthorized", "API key is invalid or expired")
+        return user
     user = user_by_token(session, pult_session)
     if user is None:
         raise unauthenticated()

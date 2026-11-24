@@ -1,0 +1,30 @@
+meta {
+  name: Изменить блок
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/blocks/{{blockId}}
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{ownerKey}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "description": "Рассылка планов",
+    "x": 120
+  }
+}
+
+tests {
+  test("200 и новые значения", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.include({ description: "Рассылка планов", x: 120 });
+  });
+}

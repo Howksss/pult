@@ -1,0 +1,35 @@
+meta {
+  name: Probe: пачка результатов
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/api/v1/probe/results
+  body: json
+  auth: none
+}
+
+headers {
+  X-Probe-Token: {{probeToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "results": [
+      { "health_check_id": {{posCheckId}}, "status": "ok", "checked_at": "{{probeTime}}", "latency_ms": 120 }
+    ]
+  }
+}
+
+script:pre-request {
+  bru.setVar("probeTime", new Date().toISOString());
+}
+
+tests {
+  test("202, результат записан", function () {
+    expect(res.getStatus()).to.equal(202);
+    expect(res.getBody()).to.include({ accepted: 1, duplicates: 0 });
+  });
+}

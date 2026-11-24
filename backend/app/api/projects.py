@@ -1,10 +1,21 @@
-from fastapi import APIRouter, Response
-from sqlalchemy import func, select
+from typing import Annotated
 
-from app.api.access import EDIT, VIEW, CurrentUser, SessionDep, require_project
-from app.api.auth import me_out
+from fastapi import APIRouter, Query, Response
+from sqlalchemy import delete, func, select
+
+from app.api.access import EDIT, VIEW, CurrentUser, SessionDep, member_role, require_project
+from app.api.paging import PageDep
 from app.api.problems import ProblemError, not_found
-from app.api.schemas import MemberAdd, MemberOut, MemberProject, MemberUpdate, ProjectCreate, ProjectCreated
+from app.api.schemas import (
+    MemberAdd,
+    MemberOut,
+    MemberProject,
+    MemberUpdate,
+    ProjectCreate,
+    ProjectCreated,
+    ProjectOut,
+    ProjectUpdate,
+)
 from app.models import AppUser, MemberRole, Project, ProjectMember
 from app.services.auth import new_token, token_hash
 
@@ -15,13 +26,34 @@ def conflict(detail: str) -> ProblemError:
     return ProblemError(409, "conflict", "Conflict", detail)
 
 
+RoleFilter = Annotated[MemberRole | None, Query(description="Только проекты или участники с этой ролью")]
+
+
 @router.get("", response_model=list[MemberProject])
-def list_projects(session: SessionDep, user: CurrentUser) -> list[MemberProject]:
-    return me_out(session, user).projects
+def list_projects(
+    session: SessionDep, user: CurrentUser, page: PageDep, role: RoleFilter = None
+) -> list[MemberProject]:
+    query = (
+        select(Project.id, Project.name, ProjectMember.role)
+        .join(ProjectMember, ProjectMember.project_id == Project.id)
+        .where(ProjectMember.user_id == user.id)
+        .order_by(Project.id)
+    )
+    if role is not None:
+        query = query.where(ProjectMember.role == role)
+    rows = session.execute(page.query(session, query)).all()
+    return [MemberProject(id=row.id, name=row.name, role=row.role) for row in rows]
 
 
 @router.post("", response_model=ProjectCreated, status_code=201)
 def create_project(payload: ProjectCreate, session: SessionDep, user: CurrentUser) -> ProjectCreated:
+    existing = session.scalar(
+        select(Project.id)
+        .join(ProjectMember, ProjectMember.project_id == Project.id)
+        .where(ProjectMember.user_id == user.id, Project.repo_full_name == payload.repo_full_name)
+    )
+    if existing is not None:
+        raise conflict(f"you already have project {existing} for {payload.repo_full_name}")
     token = new_token()
     project = Project(
         name=payload.name.strip(), repo_full_name=payload.repo_full_name, probe_token_hash=token_hash(token)
@@ -62,10 +94,62 @@ def ensure_owner_remains(session: SessionDep, member: ProjectMember) -> None:
         raise conflict("the project must keep at least one owner")
 
 
+def project_out(session: SessionDep, user: CurrentUser, project: Project) -> ProjectOut:
+    role = member_role(session, user, project.id)
+    if role is None:
+        raise not_found("project", project.id)
+    return ProjectOut(
+        id=project.id,
+        name=project.name,
+        role=role,
+        description=project.description,
+        repo_full_name=project.repo_full_name,
+        default_branch=project.default_branch,
+        created_at=project.created_at,
+    )
+
+
+@router.get("/{project_id}", response_model=ProjectOut)
+def get_project(project_id: int, session: SessionDep, user: CurrentUser) -> ProjectOut:
+    return project_out(session, user, require_project(session, user, project_id, VIEW))
+
+
+@router.patch("/{project_id}", response_model=ProjectOut)
+def update_project(
+    project_id: int, payload: ProjectUpdate, session: SessionDep, user: CurrentUser
+) -> ProjectOut:
+    project = require_project(session, user, project_id, EDIT)
+    changes = payload.model_dump(exclude_unset=True)
+    for field in ("name", "default_branch"):
+        if changes.get(field) is not None:
+            changes[field] = changes[field].strip()
+        elif field in changes:
+            del changes[field]
+    for field, value in changes.items():
+        setattr(project, field, value)
+    session.commit()
+    return project_out(session, user, project)
+
+
+@router.delete("/{project_id}", status_code=204)
+def delete_project(project_id: int, session: SessionDep, user: CurrentUser) -> Response:
+    require_project(session, user, project_id, EDIT)
+    session.execute(delete(Project).where(Project.id == project_id))
+    session.commit()
+    return Response(status_code=204)
+
+
 @router.get("/{project_id}/members", response_model=list[MemberOut])
-def list_members(project_id: int, session: SessionDep, user: CurrentUser) -> list[MemberOut]:
+def list_members(
+    project_id: int,
+    session: SessionDep,
+    user: CurrentUser,
+    page: PageDep,
+    role: RoleFilter = None,
+) -> list[MemberOut]:
     require_project(session, user, project_id, VIEW)
-    return members(session, project_id)
+    items = [item for item in members(session, project_id) if role is None or item.role is role]
+    return page.items(items)
 
 
 @router.post("/{project_id}/members", response_model=MemberOut, status_code=201)

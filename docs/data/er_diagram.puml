@@ -9,7 +9,7 @@ skinparam class {
   HeaderBackgroundColor #E8EEF7
 }
 
-title Pult — модель данных (ER), схема 0010
+title Pult — модель данных (ER), схема 0011
 
 entity app_user {
   * id : integer <<PK>>
@@ -27,6 +27,18 @@ entity user_session {
   * token_hash : varchar(64) <<UQ>>
   * expires_at : timestamptz
   * created_at : timestamptz
+}
+
+entity api_key {
+  * id : integer <<PK>>
+  --
+  * user_id : integer <<FK>>
+  * name : varchar(100)
+  * prefix : varchar(16)
+  * token_hash : varchar(64) <<UQ>>
+  * created_at : timestamptz
+  * expires_at : timestamptz
+  last_used_at : timestamptz
 }
 
 entity project {
@@ -154,6 +166,7 @@ entity audit_event {
 }
 
 app_user ||--o{ user_session
+app_user ||--o{ api_key
 app_user ||--o{ project_member
 project ||--o{ project_member
 project ||--o{ block

@@ -1,0 +1,23 @@
+meta {
+  name: Проект по идентификатору
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/projects/{{projectId}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{ownerKey}}
+}
+
+tests {
+  test("200 и поля проекта", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.include.keys("id", "name", "role", "repo_full_name", "default_branch", "created_at");
+    expect(res.getBody().id).to.equal(Number(bru.getEnvVar("projectId")));
+  });
+}

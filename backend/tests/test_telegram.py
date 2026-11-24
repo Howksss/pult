@@ -5,9 +5,7 @@ from app.api.probe import get_notifier
 from app.integrations.telegram import TelegramNotifier, format_message, is_notable
 from app.main import app
 from app.services.status import BlockStatus
-from tests.test_api import PROBE, TOKEN, pilot, probe_batch
-
-__all__ = ["pilot"]
+from tests.test_api import PROBE, TOKEN, probe_batch
 
 
 def recording_client(sent: list[httpx.Request], status_code: int = 200) -> httpx.Client:

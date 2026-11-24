@@ -1,0 +1,21 @@
+meta {
+  name: Уборка - владелец удаляет блок
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/blocks/{{blockId}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{ownerKey}}
+}
+
+tests {
+  test("204: блок, созданный прогоном, удалён", function () {
+    expect(res.getStatus()).to.equal(204);
+  });
+}

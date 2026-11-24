@@ -12,10 +12,11 @@ from app.models.audit import AuditEvent
 from app.models.base import Base
 from app.models.graph import Block, BlockKind, BlockLink, BlockScope, Project, ScopeAccess
 from app.models.health import CheckMethod, CheckResult, CheckStatus, HealthCheck
-from app.models.users import AppUser, MemberRole, ProjectMember, UserSession
+from app.models.users import ApiKey, AppUser, MemberRole, ProjectMember, UserSession
 
 __all__ = [
     "AgentTask",
+    "ApiKey",
     "AppUser",
     "AuditEvent",
     "Base",

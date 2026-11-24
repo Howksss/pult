@@ -4,12 +4,13 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, Depends, Response
-from sqlalchemy import Row, func, or_, select
+from fastapi import APIRouter, Depends, Query, Response
+from sqlalchemy import Row, Select, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from app import __version__
 from app.api.access import EDIT, OPERATE, VIEW, CurrentUser, require_block
+from app.api.paging import PageDep
 from app.api.probe import NotifierDep
 from app.api.problems import ProblemError, not_found
 from app.api.schemas import (
@@ -267,6 +268,61 @@ def update_check(check_id: int, payload: CheckUpdate, session: SessionDep, user:
     return fresh_out(session, check)
 
 
+@router.get("/checks/{check_id}", response_model=CheckOut)
+def get_check(check_id: int, session: SessionDep, user: CurrentUser) -> CheckOut:
+    return fresh_out(session, load_check(session, user, check_id, VIEW))
+
+
+class ResultFilter:
+    def __init__(
+        self,
+        status: Annotated[CheckStatus | None, Query(description="Только результаты с этим итогом")] = None,
+        since: Annotated[datetime | None, Query(description="Не раньше этого момента")] = None,
+        until: Annotated[datetime | None, Query(description="Раньше этого момента")] = None,
+    ) -> None:
+        self.status = status
+        self.since = as_utc(since) if since else None
+        self.until = as_utc(until) if until else None
+        if self.since is not None and self.until is not None and self.since >= self.until:
+            raise invalid("since must be earlier than until")
+
+    def apply(self, query: Select[tuple[CheckResult]]) -> Select[tuple[CheckResult]]:
+        if self.status is not None:
+            query = query.where(CheckResult.status == self.status)
+        if self.since is not None:
+            query = query.where(CheckResult.checked_at >= self.since)
+        if self.until is not None:
+            query = query.where(CheckResult.checked_at < self.until)
+        return query
+
+
+@router.get("/checks/{check_id}/results", response_model=list[ResultOut])
+def list_results(
+    check_id: int,
+    session: SessionDep,
+    user: CurrentUser,
+    page: PageDep,
+    filters: Annotated[ResultFilter, Depends()],
+) -> list[ResultOut]:
+    load_check(session, user, check_id, VIEW)
+    query = filters.apply(
+        select(CheckResult)
+        .where(CheckResult.health_check_id == check_id)
+        .order_by(CheckResult.checked_at.desc(), CheckResult.id.desc())
+    )
+    return [
+        ResultOut(
+            checked_at=row.checked_at,
+            status=row.status,
+            latency_ms=row.latency_ms,
+            message=row.message,
+            error_kind=row.error_kind,
+            details=row.details,
+        )
+        for row in session.scalars(page.query(session, query))
+    ]
+
+
 @router.delete("/checks/{check_id}", status_code=204)
 def delete_check(check_id: int, session: SessionDep, user: CurrentUser) -> Response:
     session.delete(load_check(session, user, check_id, EDIT))
@@ -297,7 +353,7 @@ def run_check_now(
         error_kind=outcome.error_kind,
         details=outcome.details or None,
     )
-    changes = record_results(session, [result], [check.block_id])
+    changes = record_results(session, [result], [check.block_id]).changes
     block = session.get(Block, check.block_id)
     project = session.get(Project, block.project_id) if block else None
     if project is not None:

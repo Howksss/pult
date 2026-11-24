@@ -73,12 +73,13 @@ def submit_results(
     project = authenticate(session, x_probe_token)
     owned = owned_checks(session, project, {result.health_check_id for result in payload.results})
     results = [NewResult(**result.model_dump()) for result in payload.results]
-    changes = record_results(session, results, sorted(set(owned.values())))
-    notify(session, notifier, project, changes)
+    recorded = record_results(session, results, sorted(set(owned.values())))
+    notify(session, notifier, project, recorded.changes)
     return ProbeAccepted(
-        accepted=len(payload.results),
+        accepted=recorded.inserted,
+        duplicates=len(payload.results) - recorded.inserted,
         status_changes=[
             StatusChange(block_id=change.block_id, previous=change.previous, current=change.current)
-            for change in changes
+            for change in recorded.changes
         ],
     )

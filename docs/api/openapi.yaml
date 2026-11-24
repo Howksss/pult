@@ -1,16 +1,23 @@
 openapi: 3.1.0
 info:
   title: Pult API
-  version: 1.0.0
+  version: 1.1.0
   license:
     name: MIT
     identifier: MIT
   description: |
-    Контракт API Pult версии 1. Источник истины для backend, frontend и probe.
-    Несовместимые изменения выпускаются как /api/v2, совместимые — как новые поля и эндпоинты в v1.
-    Ошибки возвращаются в формате application/problem+json (RFC 9457).
+    Контракт API Pult версии 1. Источник истины для backend, frontend, probe и коллекции Bruno: сначала меняется этот файл, потом код. Тесты backend сверяют каждый ответ с контрактом.
+    Несовместимые изменения выпускаются как /api/v2, совместимые — как новые поля и эндпоинты в v1 (журнал: docs/api/changelog.md).
+    Аутентификация: cookie сессии для интерфейса или заголовок X-API-Key для интеграций; probe — X-Probe-Token. 401 — не удалось установить, кто вы; 403 — роли в проекте не хватает.
+    Ошибки возвращаются в формате application/problem+json (RFC 9457): type, title, status, detail и для ошибок проверки — errors. 400 — тело не является JSON, 422 — JSON не прошёл проверку по схеме.
+    Списки: пагинация limit и offset, общее число в заголовке X-Total-Count, фильтры в параметрах запроса.
 servers:
   - url: http://localhost:8000
+    description: Локальный стенд разработчика
+  - url: http://127.0.0.1:4010
+    description: Mock-сервер Prism по этому контракту
+  - url: https://pultops.ru
+    description: Рабочий сервер
 tags:
   - name: graph
     description: Граф системы клиента
@@ -22,6 +29,10 @@ tags:
     description: Приём результатов проверок с сервера клиента
   - name: service
     description: Служебные эндпоинты
+  - name: projects
+    description: Проекты и участники
+  - name: auth
+    description: Вход, выход и API-ключи
 paths:
   /api/health:
     get:
@@ -36,6 +47,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Health"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/ready:
     get:
       tags: [service]
@@ -57,6 +70,8 @@ paths:
                   database:
                     type: string
                     const: ok
+        "500":
+          $ref: "#/components/responses/InternalError"
         "503":
           description: БД недоступна
           content:
@@ -69,28 +84,34 @@ paths:
       operationId: getProjectGraph
       security:
         - userSession: []
+        - apiKey: []
       summary: Граф проекта со статусами блоков
       parameters:
         - $ref: "#/components/parameters/ProjectId"
       responses:
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "200":
           description: Блоки, связи и статусы
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Graph"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/projects/{project_id}/blocks:
     post:
       tags: [graph]
       operationId: createBlock
       security:
         - userSession: []
+        - apiKey: []
       summary: Добавить блок
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -101,28 +122,83 @@ paths:
             schema:
               $ref: "#/components/schemas/BlockCreate"
       responses:
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "201":
           description: Блок создан
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Block"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [graph]
+      operationId: listBlocks
+      security:
+        - userSession: []
+        - apiKey: []
+      summary: Блоки проекта с фильтрами и пагинацией
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - name: kind
+          in: query
+          required: false
+          description: Только блоки этого типа
+          schema:
+            $ref: "#/components/schemas/BlockKind"
+        - name: status
+          in: query
+          required: false
+          description: Только блоки с этим статусом
+          schema:
+            $ref: "#/components/schemas/BlockStatus"
+        - name: q
+          in: query
+          required: false
+          description: Часть имени блока, без учёта регистра
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        "200":
+          description: Готово
+          headers:
+            X-Total-Count:
+              $ref: "#/components/headers/TotalCount"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Block"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/blocks/{block_id}:
     patch:
       tags: [graph]
       operationId: updateBlock
       security:
         - userSession: []
+        - apiKey: []
       summary: Изменить имя, описание или положение блока
       parameters:
         - $ref: "#/components/parameters/BlockId"
@@ -133,45 +209,79 @@ paths:
             schema:
               $ref: "#/components/schemas/BlockUpdate"
       responses:
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "200":
           description: Блок изменён
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Block"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
     delete:
       tags: [graph]
       operationId: deleteBlock
       security:
         - userSession: []
+        - apiKey: []
       summary: Удалить блок вместе со связями и проверками
       parameters:
         - $ref: "#/components/parameters/BlockId"
       responses:
+        "204":
+          description: Блок удалён
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
           $ref: "#/components/responses/Forbidden"
-        "204":
-          description: Блок удалён
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [graph]
+      operationId: getBlock
+      security:
+        - userSession: []
+        - apiKey: []
+      summary: Блок со статусом и причиной
+      parameters:
+        - $ref: "#/components/parameters/BlockId"
+      responses:
+        "200":
+          description: Готово
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Block"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/blocks/{block_id}/checks:
     get:
       tags: [checks]
       operationId: listBlockChecks
       security:
         - userSession: []
+        - apiKey: []
       summary: Проверки блока с последним результатом и историей
       description: |
         Проблемные проверки идут первыми, выключенные — в конце.
@@ -179,23 +289,28 @@ paths:
       parameters:
         - $ref: "#/components/parameters/BlockId"
       responses:
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "200":
           description: Проверки блока
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/BlockChecks"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
     post:
       tags: [checks]
       operationId: createCheck
       security:
         - userSession: []
+        - apiKey: []
       summary: Добавить проверку блоку
       description: |
         Цель и настройки проверяются по типу. Адреса во внутренней сети (localhost, частные, link-local)
@@ -209,26 +324,31 @@ paths:
             schema:
               $ref: "#/components/schemas/CheckCreate"
       responses:
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "201":
           description: Проверка создана
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Check"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/checks/{check_id}:
     patch:
       tags: [checks]
       operationId: updateCheck
       security:
         - userSession: []
+        - apiKey: []
       summary: Изменить проверку
       description: Тип проверки не меняется — для другого типа создаётся новая проверка.
       parameters:
@@ -240,58 +360,92 @@ paths:
             schema:
               $ref: "#/components/schemas/CheckUpdate"
       responses:
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "200":
           description: Проверка изменена
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Check"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
     delete:
       tags: [checks]
       operationId: deleteCheck
       security:
         - userSession: []
+        - apiKey: []
       summary: Удалить проверку вместе с историей
       parameters:
         - $ref: "#/components/parameters/CheckId"
       responses:
+        "204":
+          description: Проверка удалена
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
           $ref: "#/components/responses/Forbidden"
-        "204":
-          description: Проверка удалена
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [checks]
+      operationId: getCheck
+      security:
+        - userSession: []
+        - apiKey: []
+      summary: Проверка с последним результатом, историей и шкалой суток
+      parameters:
+        - $ref: "#/components/parameters/CheckId"
+      responses:
+        "200":
+          description: Готово
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Check"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/checks/{check_id}/run:
     post:
       tags: [checks]
       operationId: runCheck
       security:
         - userSession: []
+        - apiKey: []
       summary: Выполнить проверку сейчас
       description: Только для http, tls, tcp. Остальные присылает сервер клиента — ответ 409.
       parameters:
         - $ref: "#/components/parameters/CheckId"
       responses:
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "200":
           description: Проверка выполнена, результат записан
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Check"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
@@ -300,20 +454,29 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/blocks/{block_id}/scopes:
     get:
       tags: [scopes]
       operationId: listScopes
       security:
         - userSession: []
+        - apiKey: []
       summary: Область доступа блока
       parameters:
         - $ref: "#/components/parameters/BlockId"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - name: access
+          in: query
+          required: false
+          description: Только пути с этим правом
+          schema:
+            $ref: "#/components/schemas/ScopeAccess"
       responses:
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "200":
           description: Пути, отсортированные по алфавиту
           content:
@@ -322,13 +485,25 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Scope"
+          headers:
+            X-Total-Count:
+              $ref: "#/components/headers/TotalCount"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
     post:
       tags: [scopes]
       operationId: createScope
       security:
         - userSession: []
+        - apiKey: []
       summary: Добавить путь в область блока
       description: |
         Путь — шаблон glob относительно корня репозитория: `*` — в пределах папки, `**` — любые вложенные папки,
@@ -342,28 +517,73 @@ paths:
             schema:
               $ref: "#/components/schemas/ScopeCreate"
       responses:
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "201":
           description: Путь добавлен
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Scope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      tags: [scopes]
+      operationId: replaceScopes
+      security:
+        - userSession: []
+        - apiKey: []
+      summary: Заменить область доступа блока целиком (только владелец)
+      description: "Идемпотентно: повтор того же запроса даёт то же состояние. Пустой список убирает все пути"
+      parameters:
+        - $ref: "#/components/parameters/BlockId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              maxItems: 100
+              items:
+                $ref: "#/components/schemas/ScopeCreate"
+      responses:
+        "200":
+          description: Новая область блока
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Scope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/scopes/{scope_id}:
     patch:
       tags: [scopes]
       operationId: updateScope
       security:
         - userSession: []
+        - apiKey: []
       summary: Сменить право на путь
       parameters:
         - $ref: "#/components/parameters/ScopeId"
@@ -374,43 +594,53 @@ paths:
             schema:
               $ref: "#/components/schemas/ScopeUpdate"
       responses:
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "200":
           description: Право изменено
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Scope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
     delete:
       tags: [scopes]
       operationId: deleteScope
       security:
         - userSession: []
+        - apiKey: []
       summary: Убрать путь из области
       parameters:
         - $ref: "#/components/parameters/ScopeId"
       responses:
+        "204":
+          description: Путь убран
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
           $ref: "#/components/responses/Forbidden"
-        "204":
-          description: Путь убран
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/projects/{project_id}/links:
     post:
       tags: [graph]
       operationId: createLink
       security:
         - userSession: []
+        - apiKey: []
       summary: Соединить два блока проекта
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -421,22 +651,64 @@ paths:
             schema:
               $ref: "#/components/schemas/LinkCreate"
       responses:
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "201":
           description: Связь создана
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Link"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [graph]
+      operationId: listLinks
+      security:
+        - userSession: []
+        - apiKey: []
+      summary: Связи проекта
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - name: block_id
+          in: query
+          required: false
+          description: Только связи, где блок — источник или приёмник
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Готово
+          headers:
+            X-Total-Count:
+              $ref: "#/components/headers/TotalCount"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Link"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/probe/results:
     post:
       tags: [probe]
@@ -465,10 +737,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProbeAccepted"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/auth/register:
     post:
       tags: [auth]
@@ -488,6 +764,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Me"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "403":
           description: Регистрация закрыта (ALLOW_SIGNUP=false)
           content:
@@ -498,6 +776,8 @@ paths:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/auth/login:
     post:
       tags: [auth]
@@ -517,10 +797,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Me"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/auth/logout:
     post:
       tags: [auth]
@@ -530,12 +814,15 @@ paths:
       responses:
         "204":
           description: Готово
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/auth/me:
     get:
       tags: [auth]
       operationId: me
       security:
         - userSession: []
+        - apiKey: []
       summary: Текущий пользователь и его проекты
       responses:
         "200":
@@ -548,12 +835,15 @@ paths:
           $ref: "#/components/responses/Unauthenticated"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/projects:
     get:
       tags: [projects]
       operationId: listProjects
       security:
         - userSession: []
+        - apiKey: []
       summary: Проекты пользователя с ролью
       responses:
         "200":
@@ -564,15 +854,30 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/MemberProject"
+          headers:
+            X-Total-Count:
+              $ref: "#/components/headers/TotalCount"
         "401":
           $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - name: role
+          in: query
+          required: false
+          description: Только проекты, где у пользователя эта роль
+          schema:
+            $ref: "#/components/schemas/MemberRole"
     post:
       tags: [projects]
       operationId: createProject
       security:
         - userSession: []
+        - apiKey: []
       summary: "Создать проект: создатель становится владельцем"
       requestBody:
         required: true
@@ -587,21 +892,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProjectCreated"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+      description: "Второй проект на тот же репозиторий у того же пользователя не создаётся: ответ 409. Повтор запроса после обрыва связи не плодит дубликаты"
   /api/v1/projects/{project_id}/members:
     get:
       tags: [projects]
       operationId: listMembers
       security:
         - userSession: []
+        - apiKey: []
       summary: Участники проекта
       parameters:
         - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - name: role
+          in: query
+          required: false
+          description: Только участники с этой ролью
+          schema:
+            $ref: "#/components/schemas/MemberRole"
       responses:
         "200":
           description: Готово
@@ -611,17 +932,25 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Member"
+          headers:
+            X-Total-Count:
+              $ref: "#/components/headers/TotalCount"
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
     post:
       tags: [projects]
       operationId: addMember
       security:
         - userSession: []
+        - apiKey: []
       summary: Добавить участника по email (только владелец)
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -638,6 +967,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Member"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
@@ -648,12 +979,15 @@ paths:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/projects/{project_id}/members/{user_id}:
     patch:
       tags: [projects]
       operationId: updateMember
       security:
         - userSession: []
+        - apiKey: []
       summary: Сменить роль участника (только владелец)
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -671,6 +1005,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Member"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
@@ -681,11 +1017,14 @@ paths:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
     delete:
       tags: [projects]
       operationId: removeMember
       security:
         - userSession: []
+        - apiKey: []
       summary: Убрать участника (только владелец)
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -701,17 +1040,294 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/projects/{project_id}:
+    get:
+      tags: [projects]
+      operationId: getProject
+      security:
+        - userSession: []
+        - apiKey: []
+      summary: "Проект: репозиторий, основная ветка и роль пользователя"
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Готово
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags: [projects]
+      operationId: updateProject
+      security:
+        - userSession: []
+        - apiKey: []
+      summary: Изменить название, описание или основную ветку (только владелец)
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectUpdate"
+      responses:
+        "200":
+          description: Готово
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [projects]
+      operationId: deleteProject
+      security:
+        - userSession: []
+        - apiKey: []
+      summary: Удалить проект со всеми блоками, проверками и историей (только владелец)
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "204":
+          description: Проект удалён
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/links/{link_id}:
+    patch:
+      tags: [graph]
+      operationId: updateLink
+      security:
+        - userSession: []
+        - apiKey: []
+      summary: Изменить подпись связи (только владелец)
+      parameters:
+        - $ref: "#/components/parameters/LinkId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkUpdate"
+      responses:
+        "200":
+          description: Готово
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Link"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [graph]
+      operationId: deleteLink
+      security:
+        - userSession: []
+        - apiKey: []
+      summary: Удалить связь (только владелец)
+      parameters:
+        - $ref: "#/components/parameters/LinkId"
+      responses:
+        "204":
+          description: Связь удалена
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/checks/{check_id}/results:
+    get:
+      tags: [checks]
+      operationId: listCheckResults
+      security:
+        - userSession: []
+        - apiKey: []
+      summary: История результатов проверки, новые сначала
+      parameters:
+        - $ref: "#/components/parameters/CheckId"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+        - name: status
+          in: query
+          required: false
+          description: Только результаты с этим итогом
+          schema:
+            $ref: "#/components/schemas/CheckStatus"
+        - name: since
+          in: query
+          required: false
+          description: Не раньше этого момента
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          required: false
+          description: Раньше этого момента
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Готово
+          headers:
+            X-Total-Count:
+              $ref: "#/components/headers/TotalCount"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CheckResult"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/api-keys:
+    get:
+      tags: [auth]
+      operationId: listApiKeys
+      security:
+        - userSession: []
+        - apiKey: []
+      summary: Свои API-ключи без самих ключей
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Готово
+          headers:
+            X-Total-Count:
+              $ref: "#/components/headers/TotalCount"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApiKey"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags: [auth]
+      operationId: createApiKey
+      security:
+        - userSession: []
+        - apiKey: []
+      summary: "Выпустить API-ключ: он показывается один раз"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApiKeyCreate"
+      responses:
+        "201":
+          description: Ключ выпущен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyCreated"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/api-keys/{key_id}:
+    delete:
+      tags: [auth]
+      operationId: revokeApiKey
+      security:
+        - userSession: []
+        - apiKey: []
+      summary: Отозвать свой API-ключ
+      parameters:
+        - $ref: "#/components/parameters/KeyId"
+      responses:
+        "204":
+          description: Ключ отозван
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   securitySchemes:
     userSession:
       type: apiKey
       in: cookie
       name: pult_session
-      description: Сессия после входа, cookie HttpOnly, SameSite=Lax, Secure, 30 дней
+      description: "Сессия после входа через интерфейс: cookie HttpOnly, SameSite=Lax, Secure, 30 дней"
     probeToken:
       type: apiKey
       in: header
       name: X-Probe-Token
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API-ключ пользователя для интеграций и коллекции Bruno. Выпускается POST /api/v1/api-keys и показывается один раз, срок действия от 1 до 365 дней. Права те же, что у владельца ключа
   parameters:
     ProjectId:
       name: project_id
@@ -748,6 +1364,44 @@ components:
       schema:
         type: integer
         minimum: 1
+    LinkId:
+      name: link_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    KeyId:
+      name: key_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Сколько элементов вернуть
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 100
+    Offset:
+      name: offset
+      in: query
+      required: false
+      description: Сколько элементов пропустить
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+  headers:
+    TotalCount:
+      description: Сколько элементов всего с учётом фильтров, без пагинации
+      schema:
+        type: integer
   responses:
     NotFound:
       description: Объект не найден
@@ -755,36 +1409,94 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          example:
+            type: https://pult.dev/problems/not-found
+            title: Not Found
+            status: 404
+            detail: block 999 not found
     Conflict:
       description: Нарушена уникальность, например имя блока в проекте
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          example:
+            type: https://pult.dev/problems/conflict
+            title: Conflict
+            status: 409
+            detail: block named 'POS-система' already exists in project 1
     Unauthorized:
       description: Токен probe не передан или неверен
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          example:
+            type: https://pult.dev/problems/unauthorized
+            title: Unauthorized
+            status: 401
+            detail: missing or invalid X-Probe-Token
     Unauthenticated:
-      description: Нет сессии, она истекла или неверны email и пароль
+      description: Нет сессии или API-ключа, они истекли, или неверны email и пароль
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          example:
+            type: https://pult.dev/problems/unauthenticated
+            title: Unauthorized
+            status: 401
+            detail: sign in or pass X-API-Key
     Forbidden:
       description: Роли в проекте не хватает для операции
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          example:
+            type: https://pult.dev/problems/forbidden
+            title: Forbidden
+            status: 403
+            detail: role developer cannot do this
     ValidationError:
       description: Тело или параметры запроса не прошли проверку
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          example:
+            type: https://pult.dev/problems/validation
+            title: Unprocessable Entity
+            status: 422
+            detail: request validation failed
+            errors:
+              - location: body.name
+                message: Field required
+    BadRequest:
+      description: Тело запроса не является корректным JSON
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          example:
+            type: https://pult.dev/problems/bad-request
+            title: Bad Request
+            status: 400
+            detail: request body is not valid JSON
+            errors:
+              - location: body.24
+                message: JSON decode error
+    InternalError:
+      description: Непредвиденная ошибка сервера. Подробности только в журнале сервера
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          example:
+            type: https://pult.dev/problems/internal
+            title: Internal Server Error
+            status: 500
+            detail: unexpected error, see server logs
   schemas:
     Health:
       type: object
@@ -823,19 +1535,7 @@ components:
         exit_code — exit_code, command, duration_ms, stderr_tail; log_pattern — pattern, lines.
     Block:
       type: object
-      required:
-        [
-          id,
-          kind,
-          name,
-          description,
-          x,
-          y,
-          status,
-          reason,
-          checks_total,
-          checks_problem,
-        ]
+      required: [id, kind, name, description, x, y, status, reason, checks_total, checks_problem]
       properties:
         id:
           type: integer
@@ -860,6 +1560,17 @@ components:
         checks_problem:
           type: integer
           minimum: 0
+      examples:
+        - id: 7
+          kind: integration
+          name: POS-система
+          description: Продажи и остатки
+          x: 820
+          y: 510
+          status: fail
+          reason: "POS отвечает: не ответил за 10 с"
+          checks_total: 3
+          checks_problem: 1
     BlockCreate:
       type: object
       required: [kind, name]
@@ -879,6 +1590,10 @@ components:
         y:
           type: number
           default: 0
+      examples:
+        - kind: bot
+          name: Telegram-бот
+          description: Рассылка планов управляющим
     BlockUpdate:
       type: object
       minProperties: 1
@@ -906,6 +1621,11 @@ components:
           type: integer
         label:
           type: [string, "null"]
+      examples:
+        - id: 3
+          source_block_id: 2
+          target_block_id: 7
+          label: продажи за 8 недель
     LinkCreate:
       type: object
       required: [source_block_id, target_block_id]
@@ -918,6 +1638,10 @@ components:
         label:
           type: [string, "null"]
           maxLength: 100
+      examples:
+        - source_block_id: 2
+          target_block_id: 7
+          label: продажи за 8 недель
     Graph:
       type: object
       required: [project_id, project_name, generated_at, blocks, links]
@@ -972,10 +1696,14 @@ components:
             $ref: "#/components/schemas/ProbeResult"
     ProbeAccepted:
       type: object
-      required: [accepted, status_changes]
+      required: [accepted, duplicates, status_changes]
       properties:
         accepted:
           type: integer
+          description: Сколько результатов записано
+        duplicates:
+          type: integer
+          description: "Сколько результатов уже были записаны раньше и пропущены: повтор пачки безопасен"
         status_changes:
           type: array
           items:
@@ -988,6 +1716,13 @@ components:
                 $ref: "#/components/schemas/BlockStatus"
               current:
                 $ref: "#/components/schemas/BlockStatus"
+      examples:
+        - accepted: 1
+          duplicates: 0
+          status_changes:
+            - block_id: 7
+              previous: ok
+              current: fail
     CheckResult:
       type: object
       required: [checked_at, status, latency_ms, message, error_kind, details]
@@ -1005,6 +1740,16 @@ components:
           $ref: "#/components/schemas/ErrorKind"
         details:
           $ref: "#/components/schemas/Details"
+      examples:
+        - checked_at: "2026-11-24T08:05:00Z"
+          status: fail
+          latency_ms: 10000
+          message: Не ответил за 10 с
+          error_kind: timeout
+          details:
+            url: https://pos.example/api/ping
+            method: GET
+            error: "ReadTimeout: timed out"
     HistoryPoint:
       type: object
       required: [checked_at, status, latency_ms]
@@ -1031,25 +1776,7 @@ components:
           type: integer
     Check:
       type: object
-      required:
-        [
-          id,
-          title,
-          name,
-          method,
-          target,
-          interval_sec,
-          timeout_sec,
-          enabled,
-          config,
-          status,
-          reason,
-          error_kind,
-          last,
-          history,
-          timeline,
-          failing_since,
-        ]
+      required: [id, title, name, method, target, interval_sec, timeout_sec, enabled, config, status, reason, error_kind, last, history, timeline, failing_since]
       properties:
         id:
           type: integer
@@ -1108,6 +1835,10 @@ components:
           type: string
         access:
           $ref: "#/components/schemas/ScopeAccess"
+      examples:
+        - id: 4
+          path_glob: pipeline/**
+          access: write
     ScopeCreate:
       type: object
       required: [path_glob]
@@ -1239,6 +1970,10 @@ components:
           type: string
         role:
           $ref: "#/components/schemas/MemberRole"
+      examples:
+        - id: 1
+          name: "Пилот: планирование выпечки"
+          role: owner
     Me:
       type: object
       required: [id, email, full_name, projects]
@@ -1291,6 +2026,11 @@ components:
           type: string
         role:
           $ref: "#/components/schemas/MemberRole"
+      examples:
+        - user_id: 2
+          email: dev@example.com
+          full_name: Разработчик
+          role: developer
     MemberAdd:
       type: object
       required: [email, role]
@@ -1324,3 +2064,124 @@ components:
           type: array
           items:
             type: object
+      examples:
+        - type: https://pult.dev/problems/validation
+          title: Unprocessable Entity
+          status: 422
+          detail: request validation failed
+          errors:
+            - location: body.name
+              message: Field required
+    Project:
+      type: object
+      required: [id, name, role, description, repo_full_name, default_branch, created_at]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        role:
+          $ref: "#/components/schemas/MemberRole"
+        description:
+          type: [string, "null"]
+        repo_full_name:
+          type: string
+        default_branch:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+      examples:
+        - id: 1
+          name: "Пилот: планирование выпечки"
+          role: owner
+          description: Ежедневный расчёт плана выпечки для сети пекарен
+          repo_full_name: example/pilot-system
+          default_branch: main
+          created_at: "2026-11-24T08:00:00Z"
+    ProjectUpdate:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        description:
+          type: [string, "null"]
+        default_branch:
+          type: string
+          minLength: 1
+          maxLength: 100
+      examples:
+        - default_branch: master
+    LinkUpdate:
+      type: object
+      required: [label]
+      additionalProperties: false
+      properties:
+        label:
+          type: [string, "null"]
+          maxLength: 100
+    ApiKey:
+      type: object
+      required: [id, name, prefix, created_at, expires_at, last_used_at]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        prefix:
+          type: string
+          description: Начало ключа, чтобы узнать его в списке
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: [string, "null"]
+          format: date-time
+      examples:
+        - id: 5
+          name: n8n
+          prefix: pult_Xb3kQ9z
+          created_at: "2026-11-24T08:00:00Z"
+          expires_at: "2027-02-22T08:00:00Z"
+          last_used_at: "2026-11-24T09:12:00Z"
+    ApiKeyCreate:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        expires_in_days:
+          type: integer
+          minimum: 1
+          maximum: 365
+          default: 90
+      examples:
+        - name: n8n
+          expires_in_days: 90
+    ApiKeyCreated:
+      allOf:
+        - $ref: "#/components/schemas/ApiKey"
+        - type: object
+          required: [key]
+          properties:
+            key:
+              type: string
+              description: Сам ключ. Показывается только в этом ответе
+      examples:
+        - id: 5
+          name: n8n
+          prefix: pult_Xb3kQ9z
+          created_at: "2026-11-24T08:00:00Z"
+          expires_at: "2027-02-22T08:00:00Z"
+          last_used_at:
+          key: pult_Xb3kQ9zR2m-example-key-shown-once

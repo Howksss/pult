@@ -1,12 +1,92 @@
 # API
 
-Контракт: [openapi.yaml](openapi.yaml) (OpenAPI 3.1). Он пишется **до** реализации и служит источником истины для backend, frontend и probe.
+Контракт: [openapi.yaml](openapi.yaml) (OpenAPI 3.1, версия 1.1.0). Он пишется **до** реализации и служит источником истины для backend, frontend, probe и коллекции Bruno. Стиль API и почему REST — [ADR 005](../adr/005_api_style.md), что менялось — [журнал изменений](changelog.md), все ресурсы и операции с кодами ответов — [operations.md](operations.md).
 
 ## Порядок работы
 
-1. Изменение API начинается с правки `openapi.yaml` в отдельном pull request. Его проверяет Redocly CLI в CI.
-2. После слияния контракта backend реализует эндпоинты. Тесты `tests/test_api.py` с помощником `tests/contract.py` сверяют реализацию с контрактом: те же операции и коды ответов, ответы соответствуют схемам.
-3. Коллекция Bruno (`docs/api/bruno`) — запросы с проверками для ручного прогона против запущенного API с тестовыми данными: `bru run --env local` в каталоге коллекции.
+1. Изменение API начинается с правки `openapi.yaml`. Его проверяет Redocly CLI в CI (`npx @redocly/cli@1.25.15 lint docs/api/openapi.yaml`).
+2. Backend реализует операции по контракту. Тесты с помощником `tests/contract.py` сверяют реализацию с контрактом: набор операций совпадает в обе стороны, каждый ответ в тестах проверяется по коду и схеме.
+3. Документация [redoc.html](redoc.html) и таблица [operations.md](operations.md) собираются из контракта (команды ниже).
+4. Коллекция Bruno в [`tests/api`](../../tests/api) прогоняется против запущенного API. Расхождение с контрактом заводится задачей с меткой `bug` и исправляется в коде или контракте ([пример: #106](https://github.com/Howksss/pult/issues/106)).
+
+## Среды
+
+| Среда | Адрес | Для чего |
+|---|---|---|
+| локальный стенд | `http://localhost:8000` | разработка: `alembic -x seed=demo upgrade head`, затем `uvicorn app.main:app` в `backend` |
+| mock-сервер | `http://127.0.0.1:4010` | frontend и тестировщики до готовности реализации, ответы по примерам из контракта |
+| рабочий сервер | `https://pultops.ru` | пилот |
+
+Mock-сервер Prism поднимается из контракта одной командой и проверяет запросы по схемам: без `X-API-Key` отвечает 401, на неверное тело — 422, на верный запрос — пример из контракта.
+
+```bash
+npx @stoplight/prism-cli@5 mock docs/api/openapi.yaml -p 4010
+```
+
+Документация Redoc — один файл без сервера, открывается в браузере:
+
+```bash
+npx @redocly/cli@1.25.15 build-docs docs/api/openapi.yaml -o docs/api/redoc.html
+python backend/scripts/api_operations.py       # таблица operations.md
+```
+
+## Как получить доступ
+
+| Кто | Чем | Как получить |
+|---|---|---|
+| человек в интерфейсе | cookie `pult_session` | `POST /api/v1/auth/register` или `/login`, на рабочем сервере регистрацию может закрыть владелец (`ALLOW_SIGNUP=false`) |
+| интеграция, скрипт, Bruno | заголовок `X-API-Key` | войти и выпустить ключ `POST /api/v1/api-keys`. Ключ показывается один раз, живёт от 1 до 365 дней (по умолчанию 90), права — как у владельца ключа. Отозвать — `DELETE /api/v1/api-keys/{id}` |
+| probe на сервере клиента | заголовок `X-Probe-Token` | выдаётся один раз при создании проекта |
+
+401 — не удалось установить, кто вы: нет сессии или ключа, ключ неверный или истёк. Неверный ключ не подменяется cookie. 403 — вы известны, но роли в проекте не хватает. Чужой проект отвечает 404, чтобы не выдавать, что он существует.
+
+В базе хранятся только SHA-256 ключей и токенов. Секретов подписи нет, поэтому `.env` ключей не содержит; в репозитории только `.env.example`.
+
+## Примеры вызовов
+
+```bash
+PULT=http://localhost:8000
+
+# войти и выпустить ключ для интеграции
+curl -s -c jar -H "Content-Type: application/json"   -d '{"email": "owner@example.com", "password": "pult-demo-2026"}' $PULT/api/v1/auth/login > /dev/null
+KEY=$(curl -s -b jar -H "Content-Type: application/json" -d '{"name": "скрипт", "expires_in_days": 30}'   $PULT/api/v1/api-keys | jq -r .key)
+
+# блоки проекта со сбоем, первые 20
+curl -s -H "X-API-Key: $KEY" "$PULT/api/v1/projects/1/blocks?status=fail&limit=20"
+
+# сбои проверки за сутки, всего — в заголовке X-Total-Count
+curl -si -H "X-API-Key: $KEY" "$PULT/api/v1/checks/10/results?status=fail&since=2026-11-24T00:00:00Z"
+
+# добавить блок и соединить его с сервером
+curl -s -H "X-API-Key: $KEY" -H "Content-Type: application/json"   -d '{"kind": "bot", "name": "Telegram-бот"}' $PULT/api/v1/projects/1/blocks
+curl -s -H "X-API-Key: $KEY" -H "Content-Type: application/json"   -d '{"source_block_id": 1, "target_block_id": 9, "label": "уведомления"}' $PULT/api/v1/projects/1/links
+
+# заменить область агента блока целиком, повтор даёт то же состояние
+curl -s -X PUT -H "X-API-Key: $KEY" -H "Content-Type: application/json"   -d '[{"path_glob": "bots/", "access": "write"}, {"path_glob": "docs/*.md"}]' $PULT/api/v1/blocks/8/scopes
+
+# результат проверки от probe; повтор той же пачки вернёт accepted 0, duplicates 1
+curl -s -H "X-Probe-Token: demo-probe-token" -H "Content-Type: application/json"   -d '{"results": [{"health_check_id": 10, "status": "ok", "checked_at": "2026-11-25T08:00:00Z"}]}'   $PULT/api/v1/probe/results
+```
+
+## Списки: фильтры и пагинация
+
+У списков параметры `limit` (1–500, по умолчанию 100) и `offset`. Общее число элементов с учётом фильтров — в заголовке `X-Total-Count`. Фильтры — в параметрах запроса: `role` у проектов и участников, `kind`, `status`, `q` у блоков, `block_id` у связей, `access` у области, `status`, `since`, `until` у истории результатов.
+
+## Идемпотентность
+
+- `GET`, `PUT`, `DELETE` идемпотентны: `PUT /blocks/{id}/scopes` заменяет область целиком, повтор даёт то же состояние.
+- Повтор `POST` не создаёт дубликат: имя блока в проекте, связь между теми же блоками, путь в области, участник, второй проект на тот же репозиторий у пользователя — 409.
+- Повтор пачки probe (обрыв связи, повторная отправка) не записывает результаты второй раз: результат однозначно задают проверка и момент `checked_at`.
+
+## Коллекция Bruno
+
+Каталог [`tests/api`](../../tests/api), три группы: успешные сценарии, ошибки 400/404/409/422, доступ 401/403. Адрес — в окружении (`environments/local.bru`, `mock.bru`), ключи — в переменных окружения `PULT_OWNER_KEY`, `PULT_DEVELOPER_KEY`, `PULT_PROBE_TOKEN` (файл `tests/api/.env` не коммитится, образец — `.env.example`).
+
+```bash
+cd tests/api
+python issue_keys.py                       # ключи владельца и разработчика демо-данных в .env
+npx @usebruno/cli@4 run --env local --reporter-html results.html
+```
 
 ## Версионирование
 
@@ -31,7 +111,7 @@
 }
 ```
 
-У ошибок проверки входных данных (422) есть поле `errors` со списком нарушений.
+У ошибок проверки входных данных (422) и синтаксиса JSON (400) есть поле `errors` со списком нарушений. Синтаксически неверный JSON — 400, JSON, не прошедший проверку по схеме, — 422. Непредвиденная ошибка — 500 с типом `internal` и без подробностей: они пишутся только в журнал сервера.
 
 ## Аутентификация probe
 
@@ -91,7 +171,7 @@ PULT_TOKEN=...
 
 ## Аутентификация пользователей
 
-Регистрация и вход — `POST /api/v1/auth/register` и `/login` (email и пароль, пароль от 10 символов, хранится Argon2id), выход — `/logout`, текущий пользователь с проектами — `GET /api/v1/auth/me`. Сессия — cookie `pult_session` (HttpOnly, SameSite=Lax, Secure, 30 дней), в БД только SHA-256 токена (NFR-S4). Все операции, кроме health и probe, требуют сессию: схема `userSession` в контракте.
+Регистрация и вход — `POST /api/v1/auth/register` и `/login` (email и пароль, пароль от 10 символов, хранится Argon2id), выход — `/logout`, текущий пользователь с проектами — `GET /api/v1/auth/me`. Сессия — cookie `pult_session` (HttpOnly, SameSite=Lax, Secure, 30 дней), в БД только SHA-256 токена (NFR-S4). Все операции, кроме health и probe, требуют сессию или API-ключ: схемы `userSession` и `apiKey` в контракте.
 
 Права по ролям проекта: смотреть граф, проверки, область и участников — любой участник; менять граф, проверки, область и участников — владелец; «Проверить сейчас» — владелец и разработчик. Чужой проект и его блоки отвечают 404, нехватка роли — 403. Последнего владельца нельзя понизить или убрать.
 

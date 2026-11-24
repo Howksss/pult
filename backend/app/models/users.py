@@ -49,3 +49,19 @@ class UserSession(CreatedAtMixin, Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("app_user.id", ondelete="CASCADE"))
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ApiKey(CreatedAtMixin, Base):
+    __tablename__ = "api_key"
+    __table_args__ = (
+        CheckConstraint("expires_at > created_at", name="ck_api_key_expires_after_created"),
+        CheckConstraint("trim(name) <> ''", name="ck_api_key_name_not_blank"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("app_user.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    prefix: Mapped[str] = mapped_column(String(16))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

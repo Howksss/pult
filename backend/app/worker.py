@@ -87,7 +87,7 @@ def store(
         grouped[projects[check.block_id]].append((check, outcome))
     for project_id, items in grouped.items():
         results = [to_result(check, outcome, checked_at) for check, outcome in items]
-        changes = record_results(session, results, sorted({check.block_id for check, _ in items}))
+        changes = record_results(session, results, sorted({check.block_id for check, _ in items})).changes
         project = session.get(Project, project_id)
         if project is not None:
             notify(session, notifier, project, changes)
