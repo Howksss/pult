@@ -1,9 +1,9 @@
-FROM python:3.12-slim AS build
+FROM python:3.15-slim AS build
 WORKDIR /build
 COPY requirements.txt .
 RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
 
-FROM python:3.12-slim AS runtime
+FROM python:3.15-slim AS runtime
 LABEL org.opencontainers.image.source="https://github.com/Howksss/pult" \
       org.opencontainers.image.description="Pult API" \
       org.opencontainers.image.licenses="MIT"
