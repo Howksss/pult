@@ -153,5 +153,5 @@ def create_link(project_id: int, payload: LinkCreate, session: SessionDep, user:
         label=payload.label,
     )
     session.add(link)
-    session.commit()
+    commit_or_conflict(session, "these blocks are already linked in this direction")
     return link_out(link)

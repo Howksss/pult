@@ -1,0 +1,29 @@
+A=> BEGIN;
+A=> UPDATE accounts SET balance = balance - 200 WHERE id = 1;
+A=> SELECT balance FROM accounts WHERE id = 1;
+      balance
+     ---------
+       500.00
+     (1 row)
+B=> SELECT balance FROM accounts WHERE id = 1;
+      balance
+     ---------
+       700.00
+     (1 row)
+A=> INSERT INTO transfer_log (from_id, to_id, amount) VALUES (1, 3, 200);
+     ERROR:  insert or update on table "transfer_log" violates foreign key constraint "transfer_log_to_id_fkey"
+     DETAIL:  Key (to_id)=(3) is not present in table "accounts".
+A=> UPDATE accounts SET balance = balance + 200 WHERE id = 3;
+     ERROR:  current transaction is aborted, commands ignored until end of transaction block
+A=> ROLLBACK;
+A=> SELECT id, owner, balance FROM accounts ORDER BY id;
+      id |              owner               | balance
+     ----+----------------------------------+---------
+       1 | РџРµРєР°СЂРЅСЏ РЅР° РњРёСЂР°     |  700.00
+       2 | РџРµРєР°СЂРЅСЏ РЅР° Р›РµРЅРёРЅР° |  800.00
+     (2 rows)
+A=> SELECT count(*) AS transfers FROM transfer_log;
+      transfers
+     -----------
+              1
+     (1 row)

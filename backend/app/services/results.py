@@ -66,5 +66,6 @@ def notify(session: Session, notifier: TelegramNotifier, project: Project, chang
         .tuples()
         .all()
     )
+    session.commit()
     for change in notable:
         notifier.send(format_message(project.name, names[change.block_id], change.previous, change.current))

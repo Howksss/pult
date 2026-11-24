@@ -1,0 +1,13 @@
+A=> BEGIN ISOLATION LEVEL READ COMMITTED;
+A=> SELECT balance FROM accounts WHERE id = 1;
+      balance
+     ---------
+      1000.00
+     (1 row)
+B=> UPDATE accounts SET balance = balance + 100 WHERE id = 1;
+A=> SELECT balance FROM accounts WHERE id = 1;
+      balance
+     ---------
+      1100.00
+     (1 row)
+A=> COMMIT;

@@ -141,6 +141,12 @@ def test_empty_update_is_rejected(client, pilot):
     call(client, "PATCH", BLOCK, 422, block_id=pilot["job"], json={})
 
 
+def test_duplicate_link_is_a_conflict(client, pilot):
+    payload = {"source_block_id": pilot["job"], "target_block_id": pilot["pos"]}
+    call(client, "POST", LINKS, 201, project_id=pilot["project"], json=payload)
+    call(client, "POST", LINKS, 409, project_id=pilot["project"], json=payload)
+
+
 def test_link_validation(client, pilot):
     call(
         client,

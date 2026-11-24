@@ -103,7 +103,12 @@ def test_login_and_logout(anon, db):
 
 def test_expired_session_is_rejected(client, db):
     with db() as session:
-        session.execute(update(UserSession).values(expires_at=datetime.now(UTC) - timedelta(seconds=1)))
+        now = datetime.now(UTC)
+        session.execute(
+            update(UserSession).values(
+                created_at=now - timedelta(days=31), expires_at=now - timedelta(seconds=1)
+            )
+        )
         session.commit()
     call(client, "GET", ME, 401)
     call(client, "GET", ME, 401)

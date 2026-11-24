@@ -1,0 +1,12 @@
+A=> BEGIN;
+A=> UPDATE accounts SET balance = balance + 5000 WHERE id = 2;
+A=> UPDATE accounts SET balance = balance - 5000 WHERE id = 1;
+     ERROR:  new row for relation "accounts" violates check constraint "accounts_balance_not_negative"
+     DETAIL:  Failing row contains (1, РџРµРєР°СЂРЅСЏ РЅР° РњРёСЂР°, -4300.00).
+A=> ROLLBACK;
+A=> SELECT id, owner, balance FROM accounts ORDER BY id;
+      id |              owner               | balance
+     ----+----------------------------------+---------
+       1 | РџРµРєР°СЂРЅСЏ РЅР° РњРёСЂР°     |  700.00
+       2 | РџРµРєР°СЂРЅСЏ РЅР° Р›РµРЅРёРЅР° |  800.00
+     (2 rows)

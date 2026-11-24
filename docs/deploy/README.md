@@ -78,14 +78,15 @@ sed "s/pult.example.com/<домен>/g; s/127.0.0.1:8080/127.0.0.1:$WEB_PORT/" d
 
 Сертификат выпускается до включения блока 443: сначала в сайте остаётся только блок 80 с `/.well-known/acme-challenge/`, затем `certbot certonly --webroot -w /var/www/html -d <домен>`, затем включается весь сайт, `nginx -t` и `systemctl reload nginx`. Продление делает `certbot.timer`.
 
-Токен probe для проекта задаётся только хэшем: `update project set probe_token_hash = encode(sha256('<токен>'::bytea), 'hex')`. Демо-токен из `seed_demo.sql` на рабочем сервере заменяется сразу после загрузки данных.
+Токен probe для проекта задаётся только хэшем: `update project set probe_token_hash = encode(sha256('<токен>'::bytea), 'hex')`. Демо-токен из `backend/migrations/seed_demo.sql` на рабочем сервере заменяется сразу после загрузки данных.
 
 ### Резервные копии
 
-`deploy/db/backup-compose.sh` снимает `pg_dump` прямо из контейнера `db`, проверяет копию `pg_restore --list` и удаляет копии старше 14 дней. Запуск по cron раз в сутки:
+`deploy/db/backup-compose.sh` снимает `pg_dump` прямо из контейнера `db`, проверяет копию `pg_restore --list`, раз в неделю откладывает её в `weekly/`, отправляет в облачное хранилище и удаляет старые копии. `deploy/db/restore-check-compose.sh` раз в месяц восстанавливает последнюю копию во временную базу и сверяет с рабочей. Расписание, облачное хранилище, восстановление, RPO и RTO — в [инструкции](../module5/backup_instructions.md).
 
 ```
 15 3 * * * /opt/pult/deploy/db/backup-compose.sh >> /var/log/pult-backup.log 2>&1
+0 4 1 * * /opt/pult/deploy/db/restore-check-compose.sh >> /var/log/pult-restore-check.log 2>&1
 ```
 
 ## Развёртывание и откат

@@ -1,11 +1,18 @@
-BEGIN;
+-- Демонстрационные данные Pult: обезличенный пилот, 8 блоков, 11 проверок, история за 30 дней.
+-- Загружаются миграцией 0010 по флагу: alembic -x seed=demo upgrade head.
+-- В уже развёрнутую базу: psql -1 -v ON_ERROR_STOP=1 -f backend/migrations/seed_demo.sql
+-- Вход: owner@example.com, dev@example.com, client@example.com, пароль pult-demo-2026.
 
 DO $$ BEGIN PERFORM setseed(0.42); END $$;
 
 INSERT INTO app_user (email, full_name, password_hash)
-VALUES
-    ('owner@example.com', 'Владелец проекта', 'argon2-hash-placeholder'),
-    ('client@example.com', 'Управляющий сети', 'argon2-hash-placeholder');
+SELECT email, full_name, '$argon2id$v=19$m=65536,t=3,p=4$CkfbznL4Dnu70SSgYvr+2w$iyqPcn+UWkCkAWkXddj17GTS4oCNfBMcS/Wq29Z5158'
+FROM (
+    VALUES
+        ('owner@example.com', 'Владелец проекта'),
+        ('dev@example.com', 'Разработчик'),
+        ('client@example.com', 'Управляющий сети')
+) AS u (email, full_name);
 
 INSERT INTO project (name, description, repo_full_name, default_branch, probe_token_hash)
 VALUES (
@@ -17,9 +24,15 @@ VALUES (
 );
 
 INSERT INTO project_member (project_id, user_id, role)
-SELECT p.id, u.id, CASE WHEN u.email LIKE 'owner%' THEN 'owner'::member_role ELSE 'client'::member_role END
+SELECT p.id, u.id, m.role::member_role
 FROM project AS p
-CROSS JOIN app_user AS u;
+CROSS JOIN (
+    VALUES
+        ('owner@example.com', 'owner'),
+        ('dev@example.com', 'developer'),
+        ('client@example.com', 'client')
+) AS m (email, role)
+JOIN app_user AS u ON u.email = m.email;
 
 INSERT INTO block (project_id, kind, name, description, pos_x, pos_y)
 SELECT p.id, b.kind::block_kind, b.name, b.description, b.x, b.y
@@ -117,6 +130,4 @@ FROM block AS b
 CROSS JOIN app_user AS u
 WHERE b.name = 'POS-система' AND u.email = 'client@example.com';
 
-COMMIT;
-
-VACUUM (ANALYZE) block, health_check, check_result;
+ANALYZE block, health_check, check_result;
