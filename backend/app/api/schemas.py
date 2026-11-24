@@ -162,6 +162,8 @@ class CheckCreate(StrictModel):
 
     @model_validator(mode="after")
     def valid_for_method(self) -> "CheckCreate":
+        if self.timeout_sec > self.interval_sec:
+            raise ValueError("таймаут не может быть больше интервала проверки")
         self.name = blank_to_none(self.name)
         self.target = normalize_target(self.method, self.target)
         self.config = normalize_config(self.method, self.config)

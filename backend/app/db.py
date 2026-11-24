@@ -15,4 +15,8 @@ def get_engine() -> Engine:
 def get_session() -> Iterator[Session]:
     factory = sessionmaker(bind=get_engine(), expire_on_commit=False)
     with factory() as session:
-        yield session
+        try:
+            yield session
+        except Exception:
+            session.rollback()
+            raise

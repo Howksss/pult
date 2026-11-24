@@ -224,6 +224,12 @@ def guard_target(check: HealthCheck) -> None:
         raise invalid("адрес во внутренней сети: такие проверки запрещены")
 
 
+def ensure_valid(check: HealthCheck) -> None:
+    if check.timeout_sec > check.interval_sec:
+        raise invalid("таймаут не может быть больше интервала проверки")
+    guard_target(check)
+
+
 def fresh_out(session: Session, check: HealthCheck) -> CheckOut:
     now = datetime.now(UTC)
     results = recent_results(session, [check.id]).get(check.id, [])
@@ -256,7 +262,7 @@ def update_check(check_id: int, payload: CheckUpdate, session: SessionDep, user:
     for key, value in changes.items():
         if value is not None or key == "name":
             setattr(check, key, value)
-    guard_target(check)
+    ensure_valid(check)
     session.commit()
     return fresh_out(session, check)
 
@@ -280,6 +286,7 @@ def run_check_now(
             "Conflict",
             "this check is reported by the client server, Pult cannot run it",
         )
+    session.commit()
     outcome = runner(check)
     result = NewResult(
         health_check_id=check.id,

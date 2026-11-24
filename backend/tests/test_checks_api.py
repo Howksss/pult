@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.api.checks import get_runner
 from app.api.probe import get_notifier
 from app.core.config import Settings
+from app.db import get_session
 from app.main import app
 from app.models import Block, BlockKind, CheckMethod, CheckResult, CheckStatus, HealthCheck, Project
 from app.services.checks import Outcome
@@ -85,6 +86,7 @@ def test_blank_name_falls_back_to_method_and_target(client, block_id):
         {"method": "tls", "target": "pos.example", "config": {"warn_days": 5, "fail_days": 5}},
         {"method": "exit_code", "target": "main.py", "config": {"anything": 1}},
         {"method": "http", "target": "https://pos.example", "interval_sec": 5},
+        {"method": "http", "target": "https://pos.example", "interval_sec": 20, "timeout_sec": 30},
         {"method": "exit_code", "target": "   "},
     ],
 )
@@ -147,7 +149,13 @@ def test_update_check(client, block_id):
 
 @pytest.mark.parametrize(
     "payload",
-    [{"target": "pos.example"}, {"config": {"contains": ""}}, {"target": "http://192.168.0.1/"}, {}],
+    [
+        {"target": "pos.example"},
+        {"config": {"contains": ""}},
+        {"target": "http://192.168.0.1/"},
+        {},
+        {"interval_sec": 10, "timeout_sec": 30},
+    ],
 )
 def test_invalid_updates_are_rejected(client, block_id, payload):
     check_id = create(client, block_id, method="http", target="https://pos.example").json()["id"]
@@ -187,6 +195,25 @@ def test_run_now_records_result_and_notifies(client, block_id):
     assert body["last"]["details"] == {"status_code": 502}
     assert len(body["history"]) == 1
     assert notifier.sent == ["Сбой блока «POS-система» в проекте «pilot»: нет данных → сбой"]
+
+
+def test_run_now_does_not_hold_a_transaction_during_the_network_call(client, block_id, db):
+    check_id = create(client, block_id, method="http", target="https://pos.example").json()["id"]
+    sessions: list[Session] = []
+
+    def session_override():
+        with db() as session:
+            sessions.append(session)
+            yield session
+
+    def runner(_check):
+        assert not sessions[0].in_transaction()
+        return Outcome(CheckStatus.ok, 90, "HTTP 200", None, {})
+
+    app.dependency_overrides[get_session] = session_override
+    app.dependency_overrides[get_runner] = lambda: runner
+    app.dependency_overrides[get_notifier] = FakeNotifier
+    assert call(client, "POST", RUN, 200, check_id=check_id).json()["status"] == "ok"
 
 
 def test_run_now_refuses_client_reported_checks(client, block_id):
