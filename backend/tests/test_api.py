@@ -4,6 +4,7 @@ import pytest
 
 from app.main import app
 from app.models import CheckMethod, HealthCheck
+from scripts import api_operations
 from tests.contract import assert_matches_contract, contract_operations
 
 TOKEN = "test-probe-token"
@@ -261,3 +262,7 @@ def test_probe_rejects_bad_diagnostics(client, pilot, extra):
     batch = probe_batch(pilot["pos_check"], "fail")
     batch["results"][0].update(extra)
     call(client, "POST", PROBE, 422, json=batch, headers={"X-Probe-Token": TOKEN})
+
+
+def test_operations_table_matches_contract():
+    assert api_operations.TARGET.read_text(encoding="utf-8") == api_operations.build()

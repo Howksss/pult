@@ -1,0 +1,27 @@
+meta {
+  name: История результатов: сбои, пять последних
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{baseUrl}}/api/v1/checks/{{posCheckId}}/results?status=fail&limit=5
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{ownerKey}}
+}
+
+tests {
+  test("200, не больше пяти сбоев, новые сначала", function () {
+    expect(res.getStatus()).to.equal(200);
+    const rows = res.getBody();
+    expect(rows.length).to.be.within(1, 5);
+    rows.forEach((row) => expect(row.status).to.equal("fail"));
+    const times = rows.map((row) => Date.parse(row.checked_at));
+    expect(times).to.deep.equal([...times].sort((a, b) => b - a));
+    expect(Number(res.getHeader("x-total-count"))).to.be.at.least(rows.length);
+  });
+}

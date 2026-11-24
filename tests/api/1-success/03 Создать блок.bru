@@ -1,0 +1,40 @@
+meta {
+  name: Создать блок
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/projects/{{projectId}}/blocks
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{ownerKey}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "kind": "bot",
+    "name": "Bruno {{runId}}",
+    "description": "Создан коллекцией Bruno"
+  }
+}
+
+script:pre-request {
+  bru.setVar("runId", String(Date.now()));
+}
+
+script:post-response {
+  bru.setVar("blockId", res.getBody().id);
+}
+
+tests {
+  test("201 и созданный блок", function () {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.getBody()).to.include({ kind: "bot", status: "unknown" });
+    expect(res.getBody().id).to.be.a("number");
+  });
+}

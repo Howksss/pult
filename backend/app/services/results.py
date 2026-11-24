@@ -51,12 +51,14 @@ def insert_new(session: Session, results: Sequence[NewResult]) -> int:
         }
         for result in results
     ]
+    table = CheckResult.__table__
     statement = (
-        dialect.insert(CheckResult)
+        dialect.insert(table)
         .values(rows)
         .on_conflict_do_nothing(index_elements=["health_check_id", "checked_at"])
+        .returning(table.c.id)
     )
-    return int(session.execute(statement).rowcount)
+    return len(session.execute(statement).all())
 
 
 def record_results(session: Session, results: Sequence[NewResult], block_ids: list[int]) -> Recorded:

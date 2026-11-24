@@ -1,0 +1,33 @@
+meta {
+  name: Заменить область блока целиком
+  type: http
+  seq: 10
+}
+
+put {
+  url: {{baseUrl}}/api/v1/blocks/{{blockId}}/scopes
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{ownerKey}}
+  Content-Type: application/json
+}
+
+body:json {
+  [
+    { "path_glob": "bots/", "access": "write" },
+    { "path_glob": "docs/*.md" }
+  ]
+}
+
+tests {
+  test("200 и ровно два пути", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().map((scope) => [scope.path_glob, scope.access])).to.deep.equal([
+      ["bots/**", "write"],
+      ["docs/*.md", "read"],
+    ]);
+  });
+}

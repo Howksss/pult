@@ -1,0 +1,24 @@
+meta {
+  name: Список своих проектов с фильтром по роли
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/projects?role=owner&limit=10
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{ownerKey}}
+}
+
+tests {
+  test("200, массив проектов и X-Total-Count", function () {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.be.an("array").that.is.not.empty;
+    expect(Number(res.getHeader("x-total-count"))).to.be.at.least(1);
+    res.getBody().forEach((project) => expect(project.role).to.equal("owner"));
+  });
+}

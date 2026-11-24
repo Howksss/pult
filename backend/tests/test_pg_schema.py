@@ -1,5 +1,6 @@
 import os
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from alembic.autogenerate import compare_metadata
@@ -16,10 +17,12 @@ from app.models import (
     Block,
     BlockKind,
     BlockLink,
+    CheckStatus,
     MessageRole,
     Project,
     TaskMessage,
 )
+from app.services.results import NewResult, insert_new
 
 DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
 
@@ -283,4 +286,27 @@ def test_every_table_column_type_constraint_and_index_is_commented(session):
             "and obj_description(oid, 'pg_type') is null",
         )
         == []
+    )
+
+
+def test_repeated_probe_results_are_counted_on_postgres(session):
+    fixture_rows(session)
+    moment = datetime(2026, 11, 24, 8, 0, tzinfo=UTC)
+    batch = [
+        NewResult(health_check_id=900, status=CheckStatus.ok, checked_at=moment),
+        NewResult(health_check_id=900, status=CheckStatus.fail, checked_at=moment + timedelta(minutes=1)),
+    ]
+    assert insert_new(session, batch) == 2
+    assert insert_new(session, batch) == 0
+    assert (
+        insert_new(
+            session,
+            [
+                *batch,
+                NewResult(
+                    health_check_id=900, status=CheckStatus.ok, checked_at=moment + timedelta(minutes=2)
+                ),
+            ],
+        )
+        == 1
     )

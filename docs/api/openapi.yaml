@@ -544,7 +544,7 @@ paths:
         - userSession: []
         - apiKey: []
       summary: Заменить область доступа блока целиком (только владелец)
-      description: 'Идемпотентно: повтор того же запроса даёт то же состояние. Пустой список убирает все пути'
+      description: "Идемпотентно: повтор того же запроса даёт то же состояние. Пустой список убирает все пути"
       parameters:
         - $ref: "#/components/parameters/BlockId"
       requestBody:
@@ -904,7 +904,7 @@ paths:
           $ref: "#/components/responses/ValidationError"
         "500":
           $ref: "#/components/responses/InternalError"
-      description: 'Второй проект на тот же репозиторий у того же пользователя не создаётся: ответ 409. Повтор запроса после обрыва связи не плодит дубликаты'
+      description: "Второй проект на тот же репозиторий у того же пользователя не создаётся: ответ 409. Повтор запроса после обрыва связи не плодит дубликаты"
   /api/v1/projects/{project_id}/members:
     get:
       tags: [projects]
@@ -1051,7 +1051,7 @@ paths:
       security:
         - userSession: []
         - apiKey: []
-      summary: 'Проект: репозиторий, основная ветка и роль пользователя'
+      summary: "Проект: репозиторий, основная ветка и роль пользователя"
       parameters:
         - $ref: "#/components/parameters/ProjectId"
       responses:
@@ -1269,7 +1269,7 @@ paths:
       security:
         - userSession: []
         - apiKey: []
-      summary: 'Выпустить API-ключ: он показывается один раз'
+      summary: "Выпустить API-ключ: он показывается один раз"
       requestBody:
         required: true
         content:
@@ -1318,7 +1318,7 @@ components:
       type: apiKey
       in: cookie
       name: pult_session
-      description: 'Сессия после входа через интерфейс: cookie HttpOnly, SameSite=Lax, Secure, 30 дней'
+      description: "Сессия после входа через интерфейс: cookie HttpOnly, SameSite=Lax, Secure, 30 дней"
     probeToken:
       type: apiKey
       in: header
@@ -1409,48 +1409,94 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          example:
+            type: https://pult.dev/problems/not-found
+            title: Not Found
+            status: 404
+            detail: block 999 not found
     Conflict:
       description: Нарушена уникальность, например имя блока в проекте
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          example:
+            type: https://pult.dev/problems/conflict
+            title: Conflict
+            status: 409
+            detail: block named 'POS-система' already exists in project 1
     Unauthorized:
       description: Токен probe не передан или неверен
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          example:
+            type: https://pult.dev/problems/unauthorized
+            title: Unauthorized
+            status: 401
+            detail: missing or invalid X-Probe-Token
     Unauthenticated:
       description: Нет сессии или API-ключа, они истекли, или неверны email и пароль
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          example:
+            type: https://pult.dev/problems/unauthenticated
+            title: Unauthorized
+            status: 401
+            detail: sign in or pass X-API-Key
     Forbidden:
       description: Роли в проекте не хватает для операции
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          example:
+            type: https://pult.dev/problems/forbidden
+            title: Forbidden
+            status: 403
+            detail: role developer cannot do this
     ValidationError:
       description: Тело или параметры запроса не прошли проверку
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          example:
+            type: https://pult.dev/problems/validation
+            title: Unprocessable Entity
+            status: 422
+            detail: request validation failed
+            errors:
+              - location: body.name
+                message: Field required
     BadRequest:
       description: Тело запроса не является корректным JSON
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          example:
+            type: https://pult.dev/problems/bad-request
+            title: Bad Request
+            status: 400
+            detail: request body is not valid JSON
+            errors:
+              - location: body.24
+                message: JSON decode error
     InternalError:
       description: Непредвиденная ошибка сервера. Подробности только в журнале сервера
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
+          example:
+            type: https://pult.dev/problems/internal
+            title: Internal Server Error
+            status: 500
+            detail: unexpected error, see server logs
   schemas:
     Health:
       type: object
@@ -1514,6 +1560,17 @@ components:
         checks_problem:
           type: integer
           minimum: 0
+      examples:
+        - id: 7
+          kind: integration
+          name: POS-система
+          description: Продажи и остатки
+          x: 820
+          y: 510
+          status: fail
+          reason: "POS отвечает: не ответил за 10 с"
+          checks_total: 3
+          checks_problem: 1
     BlockCreate:
       type: object
       required: [kind, name]
@@ -1533,6 +1590,10 @@ components:
         y:
           type: number
           default: 0
+      examples:
+        - kind: bot
+          name: Telegram-бот
+          description: Рассылка планов управляющим
     BlockUpdate:
       type: object
       minProperties: 1
@@ -1560,6 +1621,11 @@ components:
           type: integer
         label:
           type: [string, "null"]
+      examples:
+        - id: 3
+          source_block_id: 2
+          target_block_id: 7
+          label: продажи за 8 недель
     LinkCreate:
       type: object
       required: [source_block_id, target_block_id]
@@ -1572,6 +1638,10 @@ components:
         label:
           type: [string, "null"]
           maxLength: 100
+      examples:
+        - source_block_id: 2
+          target_block_id: 7
+          label: продажи за 8 недель
     Graph:
       type: object
       required: [project_id, project_name, generated_at, blocks, links]
@@ -1633,7 +1703,7 @@ components:
           description: Сколько результатов записано
         duplicates:
           type: integer
-          description: 'Сколько результатов уже были записаны раньше и пропущены: повтор пачки безопасен'
+          description: "Сколько результатов уже были записаны раньше и пропущены: повтор пачки безопасен"
         status_changes:
           type: array
           items:
@@ -1646,6 +1716,13 @@ components:
                 $ref: "#/components/schemas/BlockStatus"
               current:
                 $ref: "#/components/schemas/BlockStatus"
+      examples:
+        - accepted: 1
+          duplicates: 0
+          status_changes:
+            - block_id: 7
+              previous: ok
+              current: fail
     CheckResult:
       type: object
       required: [checked_at, status, latency_ms, message, error_kind, details]
@@ -1663,6 +1740,16 @@ components:
           $ref: "#/components/schemas/ErrorKind"
         details:
           $ref: "#/components/schemas/Details"
+      examples:
+        - checked_at: "2026-11-24T08:05:00Z"
+          status: fail
+          latency_ms: 10000
+          message: Не ответил за 10 с
+          error_kind: timeout
+          details:
+            url: https://pos.example/api/ping
+            method: GET
+            error: "ReadTimeout: timed out"
     HistoryPoint:
       type: object
       required: [checked_at, status, latency_ms]
@@ -1748,6 +1835,10 @@ components:
           type: string
         access:
           $ref: "#/components/schemas/ScopeAccess"
+      examples:
+        - id: 4
+          path_glob: pipeline/**
+          access: write
     ScopeCreate:
       type: object
       required: [path_glob]
@@ -1879,6 +1970,10 @@ components:
           type: string
         role:
           $ref: "#/components/schemas/MemberRole"
+      examples:
+        - id: 1
+          name: "Пилот: планирование выпечки"
+          role: owner
     Me:
       type: object
       required: [id, email, full_name, projects]
@@ -1931,6 +2026,11 @@ components:
           type: string
         role:
           $ref: "#/components/schemas/MemberRole"
+      examples:
+        - user_id: 2
+          email: dev@example.com
+          full_name: Разработчик
+          role: developer
     MemberAdd:
       type: object
       required: [email, role]
@@ -1964,6 +2064,14 @@ components:
           type: array
           items:
             type: object
+      examples:
+        - type: https://pult.dev/problems/validation
+          title: Unprocessable Entity
+          status: 422
+          detail: request validation failed
+          errors:
+            - location: body.name
+              message: Field required
     Project:
       type: object
       required: [id, name, role, description, repo_full_name, default_branch, created_at]
@@ -1983,6 +2091,14 @@ components:
         created_at:
           type: string
           format: date-time
+      examples:
+        - id: 1
+          name: "Пилот: планирование выпечки"
+          role: owner
+          description: Ежедневный расчёт плана выпечки для сети пекарен
+          repo_full_name: example/pilot-system
+          default_branch: main
+          created_at: "2026-11-24T08:00:00Z"
     ProjectUpdate:
       type: object
       minProperties: 1
@@ -1998,6 +2114,8 @@ components:
           type: string
           minLength: 1
           maxLength: 100
+      examples:
+        - default_branch: master
     LinkUpdate:
       type: object
       required: [label]
@@ -2026,6 +2144,13 @@ components:
         last_used_at:
           type: [string, "null"]
           format: date-time
+      examples:
+        - id: 5
+          name: n8n
+          prefix: pult_Xb3kQ9z
+          created_at: "2026-11-24T08:00:00Z"
+          expires_at: "2027-02-22T08:00:00Z"
+          last_used_at: "2026-11-24T09:12:00Z"
     ApiKeyCreate:
       type: object
       required: [name]
@@ -2040,6 +2165,9 @@ components:
           minimum: 1
           maximum: 365
           default: 90
+      examples:
+        - name: n8n
+          expires_in_days: 90
     ApiKeyCreated:
       allOf:
         - $ref: "#/components/schemas/ApiKey"
@@ -2049,3 +2177,11 @@ components:
             key:
               type: string
               description: Сам ключ. Показывается только в этом ответе
+      examples:
+        - id: 5
+          name: n8n
+          prefix: pult_Xb3kQ9z
+          created_at: "2026-11-24T08:00:00Z"
+          expires_at: "2027-02-22T08:00:00Z"
+          last_used_at:
+          key: pult_Xb3kQ9zR2m-example-key-shown-once

@@ -1,0 +1,36 @@
+meta {
+  name: 409 - второй проект на тот же репозиторий
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v1/projects
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{ownerKey}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Повтор",
+    "repo_full_name": "example/pilot-system"
+  }
+}
+
+tests {
+  test("409 и ошибка в формате RFC 9457", function () {
+    expect(res.getStatus()).to.equal(409);
+    expect(res.getHeader("content-type")).to.contain("application/problem+json");
+    const body = res.getBody();
+    expect(body).to.have.all.keys(...Object.keys(body));
+    expect(body.type).to.match(/\/conflict$/);
+    expect(body.status).to.equal(409);
+    expect(body.title).to.be.a("string");
+    expect(body.detail).to.be.a("string");
+  });
+}

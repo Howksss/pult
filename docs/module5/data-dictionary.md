@@ -1,10 +1,10 @@
 # Словарь данных
 
-Документ собран скриптом `backend/scripts/data_dictionary.py` из живой базы после `alembic upgrade head` (версия схемы `0010`). Описания берутся из комментариев `COMMENT ON` в базе (миграция 0009), поэтому словарь и схема не расходятся. Вручную не править: после изменения схемы запустить скрипт заново.
+Документ собран скриптом `backend/scripts/data_dictionary.py` из живой базы после `alembic upgrade head` (версия схемы `0011`). Описания берутся из комментариев `COMMENT ON` в базе (миграция 0009), поэтому словарь и схема не расходятся. Вручную не править: после изменения схемы запустить скрипт заново.
 
 Формат: таблица → столбец → тип → описание → ограничения. Ниже каждой таблицы — её ограничения с правилом предметной области и индексы с запросом, который они ускоряют.
 
-Содержание: [app_user](#app_user), [user_session](#user_session), [project](#project), [project_member](#project_member), [block](#block), [block_link](#block_link), [block_scope](#block_scope), [health_check](#health_check), [check_result](#check_result), [agent_task](#agent_task), [task_message](#task_message), [change_request](#change_request), [deployment](#deployment), [audit_event](#audit_event), [alembic_version](#alembic_version), [v_block_status](#v_block_status), [перечисления](#перечисления).
+Содержание: [app_user](#app_user), [user_session](#user_session), [project](#project), [project_member](#project_member), [block](#block), [block_link](#block_link), [block_scope](#block_scope), [health_check](#health_check), [check_result](#check_result), [agent_task](#agent_task), [task_message](#task_message), [change_request](#change_request), [deployment](#deployment), [audit_event](#audit_event), [alembic_version](#alembic_version), [api_key](#api_key), [v_block_status](#v_block_status), [перечисления](#перечисления).
 
 ## app_user
 
@@ -234,8 +234,8 @@
 
 | Индекс | Определение | Зачем |
 |---|---|---|
-| `ix_check_result_check_time` | btree (health_check_id, checked_at DESC) | Последний результат и история проверки: представление v_block_status, панель проверок, расчёт начала сбоя |
 | `ix_check_result_checked_at_brin` | brin (checked_at) WITH (autosummarize='on') | Выборки результатов за период по времени, компактный BRIN для журнала, который пишется по возрастанию времени |
+| `uq_check_result_check_time` | btree (health_check_id, checked_at DESC) | Последний результат и история проверки, плюс защита от дублей: повтор пачки probe с тем же моментом проверки не создаёт вторую строку |
 
 ## agent_task
 
@@ -390,6 +390,37 @@ Pull request, который агент открыл по задаче, и ре�
 | Ограничение | Вид | Определение | Правило предметной области |
 |---|---|---|---|
 | `alembic_version_pkc` | PRIMARY KEY | PRIMARY KEY (version_num) | Версия схемы записана ровно один раз |
+
+## api_key
+
+API-ключ пользователя для интеграций: заголовок X-API-Key вместо cookie сессии (таблица).
+
+| Столбец | Тип | Обязательный | По умолчанию | Описание | Ограничения |
+|---|---|---|---|---|---|
+| `id` | integer | да | автонумерация | Идентификатор ключа | PK |
+| `user_id` | integer | да |  | Владелец ключа: запросы с ключом выполняются с его правами | NOT NULL; FK → app_user, ON DELETE CASCADE |
+| `name` | varchar(100) | да |  | Название ключа, чтобы отличать интеграции: n8n, Bruno, скрипт выгрузки | NOT NULL; CHECK ck_api_key_name_not_blank |
+| `prefix` | varchar(16) | да |  | Первые символы ключа для списка ключей. По ним ключ узнают, но не восстанавливают | NOT NULL |
+| `token_hash` | varchar(64) | да |  | SHA-256 ключа. Сам ключ показывается один раз при выпуске и не хранится | NOT NULL; UNIQUE |
+| `created_at` | timestamptz | да | `now()` | Момент выпуска ключа | NOT NULL; CHECK ck_api_key_expires_after_created |
+| `expires_at` | timestamptz | да |  | Момент, после которого ключ не принимается | NOT NULL; CHECK ck_api_key_expires_after_created |
+| `last_used_at` | timestamptz | нет |  | Когда ключ последний раз предъявляли, с точностью до минуты |  |
+
+Ограничения и правила, которые они защищают:
+
+| Ограничение | Вид | Определение | Правило предметной области |
+|---|---|---|---|
+| `api_key_pkey` | PRIMARY KEY | PRIMARY KEY (id) | Ключ однозначно определяется идентификатором |
+| `api_key_token_hash_key` | UNIQUE | UNIQUE (token_hash) | Предъявленный ключ указывает ровно на одну запись |
+| `api_key_user_id_fkey` | FOREIGN KEY | FOREIGN KEY (user_id) REFERENCES app_user(id) ON DELETE CASCADE | Ключи удалённого пользователя отзываются вместе с ним. CASCADE |
+| `ck_api_key_expires_after_created` | CHECK | CHECK ((expires_at > created_at)) | Бессрочных ключей нет: срок действия позже момента выпуска |
+| `ck_api_key_name_not_blank` | CHECK | CHECK ((TRIM(BOTH FROM name) <> ''::text)) | У ключа есть название |
+
+Индексы и запросы, которые они ускоряют:
+
+| Индекс | Определение | Зачем |
+|---|---|---|
+| `ix_api_key_user_id` | btree (user_id) | Список ключей пользователя GET /api-keys |
 
 ## v_block_status
 

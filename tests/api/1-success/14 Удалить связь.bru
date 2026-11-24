@@ -1,0 +1,21 @@
+meta {
+  name: Удалить связь
+  type: http
+  seq: 14
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/links/{{linkId}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{ownerKey}}
+}
+
+tests {
+  test("204 без тела", function () {
+    expect(res.getStatus()).to.equal(204);
+  });
+}
