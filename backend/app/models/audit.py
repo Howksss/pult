@@ -1,6 +1,6 @@
 from typing import Any
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import CheckConstraint, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, CreatedAtMixin, JsonDocument
@@ -8,6 +8,7 @@ from app.models.base import Base, CreatedAtMixin, JsonDocument
 
 class AuditEvent(CreatedAtMixin, Base):
     __tablename__ = "audit_event"
+    __table_args__ = (CheckConstraint("trim(action) <> ''", name="ck_audit_event_action_not_blank"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("app_user.id", ondelete="RESTRICT"))

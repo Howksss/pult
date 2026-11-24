@@ -9,10 +9,10 @@ skinparam class {
   HeaderBackgroundColor #E8EEF7
 }
 
-title Pult — модель данных (ER)
+title Pult — модель данных (ER), схема 0010
 
 entity app_user {
-  * id : bigint <<PK>>
+  * id : integer <<PK>>
   --
   * email : varchar(255) <<UQ>>
   * full_name : varchar(150)
@@ -20,108 +20,123 @@ entity app_user {
   * created_at : timestamptz
 }
 
+entity user_session {
+  * id : integer <<PK>>
+  --
+  * user_id : integer <<FK>>
+  * token_hash : varchar(64) <<UQ>>
+  * expires_at : timestamptz
+  * created_at : timestamptz
+}
+
 entity project {
-  * id : bigint <<PK>>
+  * id : integer <<PK>>
   --
   * name : varchar(150)
   description : text
   * repo_full_name : varchar(200)
   * default_branch : varchar(100)
+  probe_token_hash : varchar(64) <<UQ>>
   * created_at : timestamptz
 }
 
 entity project_member {
-  * project_id : bigint <<PK, FK>>
-  * user_id : bigint <<PK, FK>>
+  * project_id : integer <<PK, FK>>
+  * user_id : integer <<PK, FK>>
   --
   * role : member_role
 }
 
 entity block {
-  * id : bigint <<PK>>
+  * id : integer <<PK>>
   --
-  * project_id : bigint <<FK>>
+  * project_id : integer <<FK>>
   * kind : block_kind
   * name : varchar(100)
   description : text
-  * pos_x : real
-  * pos_y : real
+  * pos_x : double precision
+  * pos_y : double precision
   * created_at : timestamptz
 }
 
 entity block_link {
-  * id : bigint <<PK>>
+  * id : integer <<PK>>
   --
-  * source_block_id : bigint <<FK>>
-  * target_block_id : bigint <<FK>>
+  * source_block_id : integer <<FK>>
+  * target_block_id : integer <<FK>>
   label : varchar(100)
 }
 
 entity block_scope {
-  * id : bigint <<PK>>
+  * id : integer <<PK>>
   --
-  * block_id : bigint <<FK>>
+  * block_id : integer <<FK>>
   * path_glob : varchar(300)
   * access : scope_access
 }
 
 entity health_check {
-  * id : bigint <<PK>>
+  * id : integer <<PK>>
   --
-  * block_id : bigint <<FK>>
+  * block_id : integer <<FK>>
   * method : check_method
   * target : varchar(500)
-  * interval_sec : int
-  * timeout_sec : int
+  * interval_sec : integer
+  * timeout_sec : integer
+  name : varchar(120)
+  * config : jsonb
+  * enabled : boolean
 }
 
 entity check_result {
-  * id : bigint <<PK>>
+  * id : integer <<PK>>
   --
-  * health_check_id : bigint <<FK>>
+  * health_check_id : integer <<FK>>
   * checked_at : timestamptz
   * status : check_status
-  latency_ms : int
+  latency_ms : integer
   message : text
+  error_kind : varchar(40)
+  details : jsonb
 }
 
 entity agent_task {
-  * id : bigint <<PK>>
+  * id : integer <<PK>>
   --
-  * block_id : bigint <<FK>>
-  * author_id : bigint <<FK>>
+  * block_id : integer <<FK>>
+  * author_id : integer <<FK>>
   * title : varchar(200)
   * status : task_status
-  * created_at : timestamptz
   finished_at : timestamptz
+  * created_at : timestamptz
 }
 
 entity task_message {
-  * id : bigint <<PK>>
+  * id : integer <<PK>>
   --
-  * task_id : bigint <<FK>>
+  * task_id : integer <<FK>>
   * role : message_role
   * content : jsonb
-  input_tokens : int
-  output_tokens : int
+  input_tokens : integer
+  output_tokens : integer
   * created_at : timestamptz
 }
 
 entity change_request {
-  * id : bigint <<PK>>
+  * id : integer <<PK>>
   --
-  * task_id : bigint <<FK, UQ>>
+  * task_id : integer <<FK, UQ>>
   * branch_name : varchar(200)
-  * pr_number : int
+  * pr_number : integer
   * status : cr_status
-  reviewer_id : bigint <<FK>>
+  reviewer_id : integer <<FK>>
   reviewed_at : timestamptz
 }
 
 entity deployment {
-  * id : bigint <<PK>>
+  * id : integer <<PK>>
   --
-  * change_request_id : bigint <<FK>>
+  * change_request_id : integer <<FK>>
   * commit_sha : char(40)
   * status : deploy_status
   * started_at : timestamptz
@@ -129,15 +144,16 @@ entity deployment {
 }
 
 entity audit_event {
-  * id : bigint <<PK>>
+  * id : integer <<PK>>
   --
-  user_id : bigint <<FK>>
-  block_id : bigint <<FK>>
+  user_id : integer <<FK>>
+  block_id : integer <<FK>>
   * action : varchar(100)
   payload : jsonb
   * created_at : timestamptz
 }
 
+app_user ||--o{ user_session
 app_user ||--o{ project_member
 project ||--o{ project_member
 project ||--o{ block
