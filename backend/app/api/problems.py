@@ -1,3 +1,4 @@
+import logging
 from typing import Any, cast
 
 from fastapi import FastAPI, Request
@@ -8,6 +9,8 @@ from starlette.types import ExceptionHandler
 
 PROBLEM_MEDIA_TYPE = "application/problem+json"
 PROBLEM_BASE = "https://pult.dev/problems/"
+
+logger = logging.getLogger("pult.errors")
 
 
 class ProblemError(Exception):
@@ -44,6 +47,8 @@ async def handle_validation(_: Request, exc: RequestValidationError) -> JSONResp
         {"location": ".".join(str(part) for part in error["loc"]), "message": error["msg"]}
         for error in exc.errors()
     ]
+    if any(error["type"] == "json_invalid" for error in exc.errors()):
+        return problem_response(400, "bad-request", "Bad Request", "request body is not valid JSON", errors)
     return problem_response(422, "validation", "Unprocessable Entity", "request validation failed", errors)
 
 
@@ -52,7 +57,13 @@ async def handle_http(_: Request, exc: HTTPException) -> JSONResponse:
     return problem_response(exc.status_code, slug, str(exc.detail), str(exc.detail))
 
 
+async def handle_unexpected(request: Request, exc: Exception) -> JSONResponse:
+    logger.error("unhandled error on %s %s", request.method, request.url.path, exc_info=exc)
+    return problem_response(500, "internal", "Internal Server Error", "unexpected error, see server logs")
+
+
 def install(app: FastAPI) -> None:
     app.add_exception_handler(ProblemError, cast(ExceptionHandler, handle_problem))
     app.add_exception_handler(RequestValidationError, cast(ExceptionHandler, handle_validation))
     app.add_exception_handler(HTTPException, cast(ExceptionHandler, handle_http))
+    app.add_exception_handler(Exception, cast(ExceptionHandler, handle_unexpected))

@@ -1,11 +1,9 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy.orm import Session, sessionmaker
 
-from app.api.probe import hash_token
 from app.main import app
-from app.models import Block, BlockKind, CheckMethod, CheckResult, CheckStatus, HealthCheck, Project
+from app.models import CheckMethod, HealthCheck
 from tests.contract import assert_matches_contract, contract_operations
 
 TOKEN = "test-probe-token"
@@ -17,52 +15,8 @@ PROBE = "/api/v1/probe/results"
 CHECKS = "/api/v1/blocks/{block_id}/checks"
 
 
-@pytest.fixture
-def pilot(db: sessionmaker[Session], tester) -> dict[str, int]:
-    with db() as session:
-        project = Project(
-            name="pilot", repo_full_name="example/pilot-system", probe_token_hash=hash_token(TOKEN)
-        )
-        other = Project(
-            name="other", repo_full_name="example/other", probe_token_hash=hash_token("other-token")
-        )
-        session.add_all([project, other])
-        session.flush()
-        job = Block(
-            project_id=project.id, kind=BlockKind.scheduled_job, name="Расчёт плана", pos_x=10, pos_y=20
-        )
-        pos = Block(project_id=project.id, kind=BlockKind.integration, name="POS-система")
-        foreign = Block(project_id=other.id, kind=BlockKind.bot, name="Чужой бот")
-        session.add_all([job, pos, foreign])
-        session.flush()
-        pos_check = HealthCheck(block_id=pos.id, method=CheckMethod.http, target="https://pos.example")
-        foreign_check = HealthCheck(
-            block_id=foreign.id, method=CheckMethod.http, target="https://bot.example"
-        )
-        session.add_all([pos_check, foreign_check])
-        session.flush()
-        session.add(
-            CheckResult(
-                health_check_id=pos_check.id,
-                status=CheckStatus.ok,
-                checked_at=datetime.now(UTC) - timedelta(seconds=30),
-            )
-        )
-        session.commit()
-        tester.join(project.id)
-        return {
-            "project": project.id,
-            "other": other.id,
-            "job": job.id,
-            "pos": pos.id,
-            "foreign": foreign.id,
-            "pos_check": pos_check.id,
-            "foreign_check": foreign_check.id,
-        }
-
-
-def call(client, method, template, expected, *, json=None, headers=None, **params):
-    response = client.request(method, template.format(**params), json=json, headers=headers)
+def call(client, method, template, expected, *, json=None, headers=None, query=None, **params):
+    response = client.request(method, template.format(**params), json=json, headers=headers, params=query)
     assert response.status_code == expected, response.text
     assert_matches_contract(method, template, response)
     return response
@@ -197,6 +151,7 @@ def test_probe_reports_status_changes(client, pilot):
     ).json()
     assert failed == {
         "accepted": 1,
+        "duplicates": 0,
         "status_changes": [{"block_id": pilot["pos"], "previous": "ok", "current": "fail"}],
     }
     still_failing = call(

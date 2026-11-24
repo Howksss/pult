@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -6,9 +7,22 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.api.probe import hash_token
 from app.db import get_session
 from app.main import app
-from app.models import AppUser, Base, MemberRole, ProjectMember
+from app.models import (
+    AppUser,
+    Base,
+    Block,
+    BlockKind,
+    CheckMethod,
+    CheckResult,
+    CheckStatus,
+    HealthCheck,
+    MemberRole,
+    Project,
+    ProjectMember,
+)
 from app.services.auth import open_session
 
 
@@ -55,3 +69,50 @@ class Tester:
 @pytest.fixture
 def tester(db: sessionmaker[Session]) -> Tester:
     return Tester(db)
+
+
+PROBE_TOKEN = "test-probe-token"
+
+
+@pytest.fixture
+def pilot(db: sessionmaker[Session], tester) -> dict[str, int]:
+    with db() as session:
+        project = Project(
+            name="pilot", repo_full_name="example/pilot-system", probe_token_hash=hash_token(PROBE_TOKEN)
+        )
+        other = Project(
+            name="other", repo_full_name="example/other", probe_token_hash=hash_token("other-token")
+        )
+        session.add_all([project, other])
+        session.flush()
+        job = Block(
+            project_id=project.id, kind=BlockKind.scheduled_job, name="Расчёт плана", pos_x=10, pos_y=20
+        )
+        pos = Block(project_id=project.id, kind=BlockKind.integration, name="POS-система")
+        foreign = Block(project_id=other.id, kind=BlockKind.bot, name="Чужой бот")
+        session.add_all([job, pos, foreign])
+        session.flush()
+        pos_check = HealthCheck(block_id=pos.id, method=CheckMethod.http, target="https://pos.example")
+        foreign_check = HealthCheck(
+            block_id=foreign.id, method=CheckMethod.http, target="https://bot.example"
+        )
+        session.add_all([pos_check, foreign_check])
+        session.flush()
+        session.add(
+            CheckResult(
+                health_check_id=pos_check.id,
+                status=CheckStatus.ok,
+                checked_at=datetime.now(UTC) - timedelta(seconds=30),
+            )
+        )
+        session.commit()
+        tester.join(project.id)
+        return {
+            "project": project.id,
+            "other": other.id,
+            "job": job.id,
+            "pos": pos.id,
+            "foreign": foreign.id,
+            "pos_check": pos_check.id,
+            "foreign_check": foreign_check.id,
+        }

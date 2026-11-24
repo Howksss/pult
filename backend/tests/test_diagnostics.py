@@ -2,6 +2,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.models import Block, BlockKind, CheckMethod, CheckResult, CheckStatus, HealthCheck, Project
@@ -134,11 +135,11 @@ def test_disabled_checks_do_not_count(session, block):
     assert (diagnosis.status, diagnosis.checks_total) == (BlockStatus.ok, 1)
 
 
-def test_latest_result_wins_even_with_equal_time(session, block):
+def test_second_result_for_the_same_moment_is_rejected(session, block):
     check = add_check(session, block, name="POS отвечает")
     add_result(session, check, CheckStatus.fail, seconds_ago=10, message="старый")
-    add_result(session, check, CheckStatus.ok, seconds_ago=10)
-    assert block_diagnoses(session, [block.id], NOW)[block.id].status is BlockStatus.ok
+    with pytest.raises(IntegrityError):
+        add_result(session, check, CheckStatus.ok, seconds_ago=10)
 
 
 def test_naive_now_is_rejected(session, block):

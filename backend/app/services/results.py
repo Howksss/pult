@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.orm import Session
 
 from app.integrations.telegram import TelegramNotifier, format_message, is_notable
@@ -30,29 +31,46 @@ class Change:
     current: BlockStatus
 
 
-def record_results(session: Session, results: Sequence[NewResult], block_ids: list[int]) -> list[Change]:
+@dataclass(frozen=True)
+class Recorded:
+    changes: list[Change]
+    inserted: int
+
+
+def insert_new(session: Session, results: Sequence[NewResult]) -> int:
+    dialect = postgresql if session.get_bind().dialect.name == "postgresql" else sqlite
+    rows = [
+        {
+            "health_check_id": result.health_check_id,
+            "status": result.status,
+            "checked_at": as_utc(result.checked_at),
+            "latency_ms": result.latency_ms,
+            "message": result.message,
+            "error_kind": result.error_kind,
+            "details": result.details,
+        }
+        for result in results
+    ]
+    statement = (
+        dialect.insert(CheckResult)
+        .values(rows)
+        .on_conflict_do_nothing(index_elements=["health_check_id", "checked_at"])
+    )
+    return int(session.execute(statement).rowcount)
+
+
+def record_results(session: Session, results: Sequence[NewResult], block_ids: list[int]) -> Recorded:
     now = datetime.now(UTC)
     before = block_statuses(session, block_ids, now)
-    session.add_all(
-        CheckResult(
-            health_check_id=result.health_check_id,
-            status=result.status,
-            checked_at=as_utc(result.checked_at),
-            latency_ms=result.latency_ms,
-            message=result.message,
-            error_kind=result.error_kind,
-            details=result.details,
-        )
-        for result in results
-    )
-    session.flush()
+    inserted = insert_new(session, results)
     after = block_statuses(session, block_ids, now)
     session.commit()
-    return [
+    changes = [
         Change(block_id=block_id, previous=before[block_id], current=after[block_id])
         for block_id in block_ids
         if before[block_id] != after[block_id]
     ]
+    return Recorded(changes=changes, inserted=inserted)
 
 
 def notify(session: Session, notifier: TelegramNotifier, project: Project, changes: Sequence[Change]) -> None:
