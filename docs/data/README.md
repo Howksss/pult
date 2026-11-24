@@ -1,6 +1,6 @@
 # Модель данных
 
-Схема: [er_diagram.puml](er_diagram.puml), изображение: [er_diagram.png](er_diagram.png). Физическая схема создаётся миграциями Alembic (`backend/migrations`). Представление статуса, тестовые данные и анализ запросов описаны в [queries.md](queries.md), резервное копирование — в [backup.md](backup.md).
+Схема: [er_diagram.puml](er_diagram.puml), изображение: [er_diagram.png](er_diagram.png). Физическая схема создаётся миграциями Alembic (`backend/migrations`), диаграмма сверяется с моделями тестом `test_er_diagram.py`. Все таблицы, столбцы, ограничения и индексы описаны в [словаре данных](../module5/data-dictionary.md). Представление статуса, тестовые данные и анализ запросов описаны в [queries.md](queries.md), резервное копирование — в [инструкции модуля 5](../module5/backup_instructions.md).
 
 | Сущность | Назначение |
 |---|---|
@@ -17,6 +17,7 @@
 | `change_request` | Pull request, открытый по задаче, и его ревью |
 | `deployment` | Развёртывание слитого pull request |
 | `audit_event` | Запись журнала аудита |
+| `user_session` | Сессия входа пользователя: хэш токена из cookie и срок действия |
 
 Перечислимые типы (`member_role`, `block_kind`, `scope_access`, `check_method`, `check_status`, `task_status`, `message_role`, `cr_status`, `deploy_status`) реализуются как `ENUM` PostgreSQL.
 
@@ -30,4 +31,4 @@
   - ссылка на pull request не хранится, она собирается из `project.repo_full_name` и `change_request.pr_number`;
   - проект задачи определяется через `agent_task.block_id → block.project_id`.
 
-Ограничения целостности: `UNIQUE (project_id, name)` в `block`, `CHECK (source_block_id <> target_block_id)` в `block_link`, `UNIQUE (task_id)` в `change_request` (у задачи не больше одного pull request).
+Ограничения целостности: 15 первичных ключей, 17 внешних, 7 `UNIQUE`, 24 `CHECK` и частичный уникальный индекс. Каждое с правилом предметной области перечислено в [словаре данных](../module5/data-dictionary.md), обзор — в [модуле 5](../module5/README.md).

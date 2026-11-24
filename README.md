@@ -37,6 +37,7 @@ cd backend
 python -m venv .venv
 .venv/Scripts/activate        # Linux: source .venv/bin/activate
 pip install -r requirements-dev.txt
+alembic -x seed=demo upgrade head   # схема и демо-данные; вход owner@example.com / pult-demo-2026
 uvicorn app.main:app --reload
 curl http://localhost:8000/api/health
 
@@ -68,7 +69,7 @@ npm run lint && npm run format:check
 - процессы As-Is и To-Be: [описание](docs/bpmn/README.md), [as_is.bpmn](docs/bpmn/as_is.bpmn) / [png](docs/bpmn/as_is.png), [to_be.bpmn](docs/bpmn/to_be.bpmn) / [png](docs/bpmn/to_be.png)
 - требования: [функциональные](docs/requirements/functional.md), [нефункциональные](docs/requirements/non_functional.md)
 - архитектура: [контекст C4](docs/architecture/context_diagram.puml) / [png](docs/architecture/context_diagram.png), [контейнеры C4](docs/architecture/container_diagram.puml) / [png](docs/architecture/container_diagram.png), [ADR](docs/adr)
-- данные: [ER-модель](docs/data/README.md) / [png](docs/data/er_diagram.png), [запросы](docs/data/queries.md), [бэкапы](docs/data/backup.md)
+- данные: [ER-модель](docs/data/README.md) / [png](docs/data/er_diagram.png), [запросы](docs/data/queries.md), [модуль 5](docs/module5/README.md): [словарь данных](docs/module5/data-dictionary.md), [транзакции](docs/module5/transactions_demo/README.md), [резервные копии](docs/module5/backup_instructions.md), [проверка восстановления](docs/module5/backup_check.md), [ADR 004 о миграциях](docs/adr/004_migration_tool.md)
 - API: [docs/api](docs/api/README.md)
 - ветки, коммиты и PR: [branching.md](docs/process/branching.md), [ретроспектива](docs/process/retrospective.md)
 - качество и тесты: [docs/quality](docs/quality/README.md), [модуль 4](docs/module4/README.md)
